@@ -26,11 +26,14 @@ const WORKER_TOOLS: Anthropic.Tool[] = [
 ];
 
 /**
- * Builds the Smithery Gmail MCP server entry if SMITHERY_API_KEY is set.
+ * Builds the Smithery Google Super MCP server entry if SMITHERY_API_KEY is set.
+ * Google Super provides Gmail, Drive, Calendar, Sheets, and more in one server.
  * Returns an empty array when the key is absent so the worker still runs
- * without Gmail access.
+ * without Google access.
+ *
+ * Server: https://smithery.ai/server/googlesuper
  */
-function buildGmailMcpServer(): Array<{
+function buildGoogleSuperMcpServer(): Array<{
   type: "url";
   url: string;
   name: string;
@@ -40,8 +43,8 @@ function buildGmailMcpServer(): Array<{
   return [
     {
       type: "url",
-      url: `https://server.smithery.ai/@shinzo-labs/gmail-mcp/mcp?api_key=${encodeURIComponent(key)}`,
-      name: "gmail",
+      url: `https://server.smithery.ai/googlesuper/mcp?api_key=${encodeURIComponent(key)}`,
+      name: "googlesuper",
     },
   ];
 }
@@ -50,7 +53,8 @@ function buildGmailMcpServer(): Array<{
  * Runs a single worker agent that processes one sub-task.
  * The agent loops until it calls `report_result` or exhausts max turns.
  *
- * When SMITHERY_API_KEY is set the worker also has access to Gmail MCP tools.
+ * When SMITHERY_API_KEY is set the worker also has access to Google Super MCP
+ * tools (Gmail, Drive, Calendar, Sheets, Analytics, Ads, and more).
  * MCP tool calls are handled transparently server-side by Anthropic's API —
  * our loop only needs to intercept the custom `report_result` tool.
  */
@@ -70,21 +74,23 @@ Do not ask clarifying questions — use your best judgment and complete the task
     { role: "user", content: userMessage },
   ];
 
-  const gmailMcpServers = buildGmailMcpServer();
-  const hasGmail = gmailMcpServers.length > 0;
+  const googleSuperMcpServers = buildGoogleSuperMcpServer();
+  const hasGoogleSuper = googleSuperMcpServers.length > 0;
 
-  // Build the tools array: always include report_result; add the Gmail MCP
-  // toolset when the key is present so Claude can use Gmail tools.
+  // Build the tools array: always include report_result; add the Google Super
+  // MCP toolset when the key is present so Claude can use Google tools.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tools: any[] = [
     ...WORKER_TOOLS,
-    ...(hasGmail ? [{ type: "mcp_toolset", mcp_server_name: "gmail" }] : []),
+    ...(hasGoogleSuper
+      ? [{ type: "mcp_toolset", mcp_server_name: "googlesuper" }]
+      : []),
   ];
 
   for (let turn = 0; turn < maxTurns; turn++) {
     // Use client.beta.messages for MCP support; the beta API is backwards
     // compatible with the regular messages API so this is safe when
-    // mcp_servers is an empty array (no Gmail key set).
+    // mcp_servers is an empty array (no Smithery key set).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const response: Anthropic.Message = await (client as any).beta.messages.create(
       {
@@ -92,7 +98,7 @@ Do not ask clarifying questions — use your best judgment and complete the task
         max_tokens: 4096,
         system: systemPrompt,
         tools,
-        ...(hasGmail && { mcp_servers: gmailMcpServers }),
+        ...(hasGoogleSuper && { mcp_servers: googleSuperMcpServers }),
         messages,
       },
       {
@@ -101,7 +107,7 @@ Do not ask clarifying questions — use your best judgment and complete the task
     );
 
     // Collect tool uses our application must handle (only report_result).
-    // Gmail MCP tool calls are resolved server-side and never appear here.
+    // Google Super MCP tool calls are resolved server-side and never appear here.
     const toolUses = response.content.filter(
       (block): block is Anthropic.ToolUseBlock => block.type === "tool_use"
     );
