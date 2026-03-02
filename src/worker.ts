@@ -4,8 +4,8 @@ import type { SubTask, WorkerResult } from "./types.js";
 const client = new Anthropic();
 
 /**
- * Tools available to every worker agent.
- * Extend this array to give workers more capabilities.
+ * Tools that our application layer handles (not MCP tools).
+ * MCP tools are declared separately and handled server-side by Anthropic's API.
  */
 const WORKER_TOOLS: Anthropic.Tool[] = [
   {
@@ -26,8 +26,33 @@ const WORKER_TOOLS: Anthropic.Tool[] = [
 ];
 
 /**
+ * Builds the Smithery Gmail MCP server entry if SMITHERY_API_KEY is set.
+ * Returns an empty array when the key is absent so the worker still runs
+ * without Gmail access.
+ */
+function buildGmailMcpServer(): Array<{
+  type: "url";
+  url: string;
+  name: string;
+}> {
+  const key = process.env.SMITHERY_API_KEY;
+  if (!key) return [];
+  return [
+    {
+      type: "url",
+      url: `https://server.smithery.ai/@shinzo-labs/gmail-mcp/mcp?api_key=${encodeURIComponent(key)}`,
+      name: "gmail",
+    },
+  ];
+}
+
+/**
  * Runs a single worker agent that processes one sub-task.
  * The agent loops until it calls `report_result` or exhausts max turns.
+ *
+ * When SMITHERY_API_KEY is set the worker also has access to Gmail MCP tools.
+ * MCP tool calls are handled transparently server-side by Anthropic's API —
+ * our loop only needs to intercept the custom `report_result` tool.
  */
 export async function runWorker(
   task: SubTask,
@@ -45,21 +70,42 @@ Do not ask clarifying questions — use your best judgment and complete the task
     { role: "user", content: userMessage },
   ];
 
-  for (let turn = 0; turn < maxTurns; turn++) {
-    const response = await client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 4096,
-      system: systemPrompt,
-      tools: WORKER_TOOLS,
-      messages,
-    });
+  const gmailMcpServers = buildGmailMcpServer();
+  const hasGmail = gmailMcpServers.length > 0;
 
-    // Collect any tool uses from this response
+  // Build the tools array: always include report_result; add the Gmail MCP
+  // toolset when the key is present so Claude can use Gmail tools.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tools: any[] = [
+    ...WORKER_TOOLS,
+    ...(hasGmail ? [{ type: "mcp_toolset", mcp_server_name: "gmail" }] : []),
+  ];
+
+  for (let turn = 0; turn < maxTurns; turn++) {
+    // Use client.beta.messages for MCP support; the beta API is backwards
+    // compatible with the regular messages API so this is safe when
+    // mcp_servers is an empty array (no Gmail key set).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const response: Anthropic.Message = await (client as any).beta.messages.create(
+      {
+        model: "claude-sonnet-4-6",
+        max_tokens: 4096,
+        system: systemPrompt,
+        tools,
+        ...(hasGmail && { mcp_servers: gmailMcpServers }),
+        messages,
+      },
+      {
+        headers: { "anthropic-beta": "mcp-client-2025-11-20" },
+      }
+    );
+
+    // Collect tool uses our application must handle (only report_result).
+    // Gmail MCP tool calls are resolved server-side and never appear here.
     const toolUses = response.content.filter(
       (block): block is Anthropic.ToolUseBlock => block.type === "tool_use"
     );
 
-    // Check if the agent called report_result
     const reportBlock = toolUses.find((t) => t.name === "report_result");
     if (reportBlock) {
       const input = reportBlock.input as { result: string };
