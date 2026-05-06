@@ -598,8 +598,8 @@ def page_9_about_justin(c):
         "internal dev teams, and not solopreneurs piecing together no-code apps.",
         tx, ty, tw, size=11.5, leading=16, color=SLATE)
 
-    # Lower section: what we do
-    y = badge_y - 0.4 * inch
+    # Lower section: what we do — start below whichever column ends lower
+    y = min(badge_y, ty) - 0.4 * inch
     section_title(c, x, y, "What Peaking Momentum does")
     y -= 26
     y = bullet(c, x, y, "Custom AI systems",
