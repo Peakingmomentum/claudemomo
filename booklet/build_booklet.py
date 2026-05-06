@@ -1,8 +1,9 @@
 """
 Warm Follow — 12-page introductory booklet generator.
 
-Source: warmfollow.com (positioning, copy, stats and founder quote
-captured from the live homepage on 2026-05-06).
+Source: warmfollow.com (positioning, copy, stats, real customer numbers,
+case study, pricing and founder quote captured from the live homepage on
+2026-05-06).
 
 Output: dist/WarmFollow-Booklet.pdf
 Size:   Letter (8.5 x 11 in)
@@ -19,18 +20,22 @@ from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
 
 # ---------- Brand palette ----------
-# Warm Follow homepage uses a warm orange CTA on a clean white surface,
-# with deep navy section accents. We mirror that here.
+# warmfollow.com uses a flame-orange CTA color and deep navy text on a
+# clean cream/white surface, with a soft sky-blue "AI" accent on the
+# "After Warm Follow" panels. Mirrored here.
 CORAL = HexColor("#F26B3A")
 CORAL_DARK = HexColor("#C04E20")
 NAVY = HexColor("#15263F")
 NAVY_SOFT = HexColor("#22365A")
+SKY = HexColor("#DCE8F8")
+SKY_TEXT = HexColor("#1F4FA8")
 CREAM = HexColor("#FFF7F0")
 SAND = HexColor("#F4E5D4")
 INK = HexColor("#1A1A1A")
 GRAY = HexColor("#5A5A5A")
 GRAY_LIGHT = HexColor("#B8B8B8")
 GOLD = HexColor("#E5A24A")
+GREEN = HexColor("#1F9E5C")
 
 PAGE_W, PAGE_H = LETTER
 MARGIN = 0.7 * inch
@@ -43,39 +48,50 @@ EMAIL = "hello@warmfollow.com"
 
 
 # ---------- Drawing helpers ----------
-def fill_bg(c: canvas.Canvas, color):
+def fill_bg(c, color):
     c.setFillColor(color)
     c.rect(0, 0, PAGE_W, PAGE_H, stroke=0, fill=1)
 
 
-def header_band(c: canvas.Canvas, color=NAVY, height=0.55 * inch):
+def flame_mark(c, x, y, size=12, dot_color=CORAL):
+    """Draw a small flame dot + WARM FOLLOW wordmark."""
+    c.setFillColor(dot_color)
+    c.circle(x, y + size * 0.35, size * 0.32, stroke=0, fill=1)
+    c.setFillColor(NAVY if dot_color == CORAL else white)
+    c.setFont("Helvetica-Bold", size)
+    c.drawString(x + size * 0.55, y, "WARM FOLLOW")
+
+
+def header_band(c, color=NAVY, height=0.55 * inch):
     c.setFillColor(color)
     c.rect(0, PAGE_H - height, PAGE_W, height, stroke=0, fill=1)
+    c.setFillColor(CORAL)
+    c.circle(MARGIN + 0.07 * inch, PAGE_H - height + 0.27 * inch,
+             0.07 * inch, stroke=0, fill=1)
     c.setFillColor(white)
     c.setFont("Helvetica-Bold", 10)
-    c.drawString(MARGIN, PAGE_H - height + 0.2 * inch, "WARM FOLLOW")
+    c.drawString(MARGIN + 0.22 * inch, PAGE_H - height + 0.2 * inch,
+                 "WARM FOLLOW")
     c.setFont("Helvetica", 9)
     c.setFillColor(HexColor("#D9D9D9"))
     c.drawRightString(PAGE_W - MARGIN, PAGE_H - height + 0.2 * inch, URL)
 
 
-def footer(c: canvas.Canvas, page_num: int, total: int = 12):
+def footer(c, page_num, total=12, tagline=None):
     c.setStrokeColor(GRAY_LIGHT)
     c.setLineWidth(0.4)
     c.line(MARGIN, 0.7 * inch, PAGE_W - MARGIN, 0.7 * inch)
     c.setFillColor(GRAY)
     c.setFont("Helvetica", 8)
-    c.drawString(MARGIN, 0.45 * inch,
-                 "Warm Follow — AI follow-up that books real estate appointments while you sleep.")
+    line = tagline or ("Warm Follow — AI follow-up that books real "
+                       "estate appointments while you sleep.")
+    c.drawString(MARGIN, 0.45 * inch, line)
     c.drawRightString(PAGE_W - MARGIN, 0.45 * inch,
                       f"Page {page_num} of {total}")
 
 
-def wrap_text(c: canvas.Canvas, text: str, x: float, y: float,
-              max_width: float, font: str = "Helvetica",
-              size: int = 11, leading: float = 15,
-              color=INK) -> float:
-    """Word-wrap and draw text. Returns y after the last line."""
+def wrap_text(c, text, x, y, max_width, font="Helvetica",
+              size=11, leading=15, color=INK):
     c.setFillColor(color)
     c.setFont(font, size)
     line = ""
@@ -93,30 +109,29 @@ def wrap_text(c: canvas.Canvas, text: str, x: float, y: float,
     return y
 
 
-def big_headline(c: canvas.Canvas, text: str, y: float,
-                 size: int = 28, color=NAVY,
-                 font: str = "Helvetica-Bold",
-                 x: float = None):
+def big_headline(c, text, y, size=28, color=NAVY,
+                 font="Helvetica-Bold", x=None):
     c.setFillColor(color)
     c.setFont(font, size)
     c.drawString(MARGIN if x is None else x, y, text)
 
 
-def kicker(c: canvas.Canvas, text: str, y: float, color=CORAL):
+def kicker(c, text, y, color=SKY_TEXT):
     c.setFillColor(color)
-    c.setFont("Helvetica-Bold", 10)
-    c.drawString(MARGIN, y, text.upper())
+    c.circle(MARGIN + 0.06 * inch, y + 0.04 * inch, 0.06 * inch,
+             stroke=0, fill=1)
+    c.setFillColor(color)
+    c.setFont("Helvetica-Bold", 9.5)
+    c.drawString(MARGIN + 0.22 * inch, y, text.upper())
 
 
-def divider(c: canvas.Canvas, y: float, color=CORAL,
-            width: float = 0.6 * inch):
+def divider(c, y, color=CORAL, width=0.6 * inch):
     c.setStrokeColor(color)
     c.setLineWidth(2.5)
     c.line(MARGIN, y, MARGIN + width, y)
 
 
-def feature_row(c: canvas.Canvas, x: float, y: float,
-                title: str, body: str, bullet: str = "•") -> float:
+def feature_row(c, x, y, title, body, bullet="•"):
     c.setFillColor(CORAL)
     c.setFont("Helvetica-Bold", 14)
     c.drawString(x, y, bullet)
@@ -128,33 +143,40 @@ def feature_row(c: canvas.Canvas, x: float, y: float,
                      size=10.5, leading=14, color=GRAY)
 
 
-def stat_block(c: canvas.Canvas, x: float, y: float, w: float, h: float,
-               number: str, label: str, bg=CORAL, fg=white):
-    c.setFillColor(bg)
-    c.roundRect(x, y, w, h, 8, stroke=0, fill=1)
-    c.setFillColor(fg)
-    c.setFont("Helvetica-Bold", 28)
-    c.drawCentredString(x + w / 2, y + h - 0.55 * inch, number)
+def stat_card(c, x, y, w, h, number, label, accent="white",
+              fg=NAVY, sub_color=GRAY):
+    c.setFillColor(white)
+    c.setStrokeColor(GRAY_LIGHT)
+    c.setLineWidth(0.5)
+    c.roundRect(x, y, w, h, 8, stroke=1, fill=1)
+    c.setFillColor(fg if accent == "white" else CORAL)
+    c.setFont("Helvetica-Bold", 9)
+    c.drawString(x + 0.2 * inch, y + h - 0.3 * inch, accent.upper()
+                 if accent != "white" else "")
+    c.setFillColor(NAVY)
+    c.setFont("Helvetica-Bold", 26)
+    c.drawString(x + 0.2 * inch, y + 0.55 * inch, number)
+    c.setFillColor(sub_color)
     c.setFont("Helvetica", 9)
     line = ""
     lines = []
     for word in label.split():
         test = (line + " " + word).strip()
-        if c.stringWidth(test, "Helvetica", 9) <= w - 0.3 * inch:
+        if c.stringWidth(test, "Helvetica", 9) <= w - 0.4 * inch:
             line = test
         else:
             lines.append(line)
             line = word
     if line:
         lines.append(line)
-    ly = y + h - 0.85 * inch
+    ly = y + 0.3 * inch
     for ln in lines:
-        c.drawCentredString(x + w / 2, ly, ln)
-        ly -= 12
+        c.drawString(x + 0.2 * inch, ly, ln)
+        ly -= 11
 
 
 # ---------- Page 1 — Front Cover ----------
-def page_01_front_cover(c: canvas.Canvas):
+def page_01_front_cover(c):
     fill_bg(c, NAVY)
 
     # Coral angled accent
@@ -167,46 +189,85 @@ def page_01_front_cover(c: canvas.Canvas):
     p.close()
     c.drawPath(p, stroke=0, fill=1)
 
-    # Brand mark
+    # Brand mark + URL
+    c.setFillColor(CORAL)
+    c.circle(MARGIN + 0.07 * inch, PAGE_H - 0.83 * inch, 0.09 * inch,
+             stroke=0, fill=1)
     c.setFillColor(white)
     c.setFont("Helvetica-Bold", 12)
-    c.drawString(MARGIN, PAGE_H - 0.9 * inch, "WARM FOLLOW")
-    c.setFillColor(CORAL)
-    c.circle(MARGIN + 1.45 * inch, PAGE_H - 0.87 * inch, 4, stroke=0, fill=1)
+    c.drawString(MARGIN + 0.25 * inch, PAGE_H - 0.9 * inch, "WARM FOLLOW")
     c.setFillColor(HexColor("#A9B6CC"))
     c.setFont("Helvetica", 9)
     c.drawString(MARGIN + 1.6 * inch, PAGE_H - 0.9 * inch, URL)
 
-    # Big title — taken from homepage hero
+    # Live system pill (mirrors site)
     c.setFillColor(white)
-    c.setFont("Helvetica-Bold", 52)
-    c.drawString(MARGIN, PAGE_H - 2.4 * inch, "227 appointments")
-    c.drawString(MARGIN, PAGE_H - 3.0 * inch, "booked.")
-    c.drawString(MARGIN, PAGE_H - 3.6 * inch, "$100K+ closed.")
-    c.setFillColor(CORAL)
-    c.drawString(MARGIN, PAGE_H - 4.2 * inch, "Zero human")
-    c.drawString(MARGIN, PAGE_H - 4.8 * inch, "follow-up.")
+    c.roundRect(MARGIN, PAGE_H - 1.55 * inch, 4.6 * inch, 0.32 * inch, 16,
+                stroke=0, fill=1)
+    c.setFillColor(GREEN)
+    c.circle(MARGIN + 0.2 * inch, PAGE_H - 1.39 * inch, 0.06 * inch,
+             stroke=0, fill=1)
+    c.setFillColor(NAVY)
+    c.setFont("Helvetica-Bold", 9)
+    c.drawString(MARGIN + 0.35 * inch, PAGE_H - 1.43 * inch,
+                 "LIVE SYSTEM  ·  REAL RESULTS  ·  REAL ESTATE")
 
-    # Subtitle
+    # Hero headline (verbatim from site, broken to separate lines)
+    c.setFillColor(white)
+    c.setFont("Helvetica-Bold", 48)
+    c.drawString(MARGIN, PAGE_H - 2.4 * inch, "Your leads deserve")
+    c.setFillColor(SKY)
+    c.drawString(MARGIN, PAGE_H - 3.05 * inch, "a faster reply")
+    c.setFillColor(white)
+    c.drawString(MARGIN, PAGE_H - 3.7 * inch, "than you can give.")
+
+    # Subhead (verbatim from site, lightly tightened)
     c.setFillColor(HexColor("#D7DCE6"))
     sub = ("Warm Follow is the AI agent that texts, calls, and follows "
-           "up with every real estate lead — 24/7, with empathy, "
-           "persistence, and confidence — until they book.")
-    wrap_text(c, sub, MARGIN, PAGE_H - 5.5 * inch,
-              PAGE_W - 2 * MARGIN - 0.5 * inch,
-              font="Helvetica", size=13, leading=18,
+           "up with every motivated seller and every active buyer — "
+           "inbound and outbound — until they book. One investor used "
+           "it to close six figures in wholesale assignments while his "
+           "phone stayed silent.")
+    wrap_text(c, sub, MARGIN, PAGE_H - 4.3 * inch,
+              PAGE_W - 2 * MARGIN - 0.4 * inch,
+              font="Helvetica", size=12.5, leading=17.5,
               color=HexColor("#D7DCE6"))
 
-    # Audience pill
+    # Proof strip
+    proof_y = 2.4 * inch
     c.setFillColor(white)
-    c.roundRect(MARGIN, 1.7 * inch, 3.5 * inch, 0.45 * inch, 12,
+    c.roundRect(MARGIN, proof_y, PAGE_W - 2 * MARGIN, 1.0 * inch, 10,
                 stroke=0, fill=1)
     c.setFillColor(NAVY)
+    c.setFont("Helvetica-Bold", 9)
+    c.drawString(MARGIN + 0.3 * inch, proof_y + 0.78 * inch,
+                 "SEE THE PROOF")
+    items = [
+        ("193+", "appointments booked"),
+        ("$100K+", "assignments closed"),
+        ("47s", "avg AI response"),
+        ("0 hrs", "human follow-up"),
+    ]
+    cell_w = (PAGE_W - 2 * MARGIN - 0.6 * inch) / 4
+    for i, (n, l) in enumerate(items):
+        cx = MARGIN + 0.3 * inch + i * cell_w
+        c.setFillColor(CORAL)
+        c.setFont("Helvetica-Bold", 18)
+        c.drawString(cx, proof_y + 0.45 * inch, n)
+        c.setFillColor(GRAY)
+        c.setFont("Helvetica", 9)
+        c.drawString(cx, proof_y + 0.22 * inch, l)
+
+    # Audience pill
+    c.setFillColor(CORAL)
+    c.roundRect(MARGIN, 1.7 * inch, 4.0 * inch, 0.45 * inch, 12,
+                stroke=0, fill=1)
+    c.setFillColor(white)
     c.setFont("Helvetica-Bold", 11)
     c.drawString(MARGIN + 0.25 * inch, 1.86 * inch,
                  "FOR REAL ESTATE INVESTORS  +  AGENTS")
 
-    # Bottom CTA strip
+    # CTA strip
     c.setFillColor(CORAL)
     c.rect(0, 0.7 * inch, PAGE_W, 0.55 * inch, stroke=0, fill=1)
     c.setFillColor(white)
@@ -221,7 +282,7 @@ def page_01_front_cover(c: canvas.Canvas):
 
 
 # ---------- Page 2 — Welcome ----------
-def page_02_welcome(c: canvas.Canvas):
+def page_02_welcome(c):
     fill_bg(c, CREAM)
     header_band(c)
 
@@ -231,29 +292,29 @@ def page_02_welcome(c: canvas.Canvas):
     divider(c, PAGE_H - 2.7 * inch)
 
     body = (
-        "Most real estate deals are not lost in the pitch — they are "
-        "lost in the follow-up. Leads ghost while you're driving. "
-        "Voicemails go unreturned for hours. Long cadences die after "
-        "the first attempt. Aged leads sit untouched in your CRM "
-        "forever."
+        "Whether you're an investor working motivated sellers or an "
+        "agent working buyers and listings, deals are not lost in the "
+        "pitch — they're lost in the follow-up. Hot leads go cold "
+        "while you're in a contract. Sellers slip to whoever calls "
+        "them first. Manual follow-up doesn't scale past one person."
     )
     y = wrap_text(c, body, MARGIN, PAGE_H - 3.1 * inch,
                   PAGE_W - 2 * MARGIN, size=11.5, leading=17)
 
     body2 = (
-        "Warm Follow is the AI agent that closes that gap. It responds "
-        "to every inbound text, call and voicemail in under 60 seconds. "
-        "It runs multi-week outbound cadences without a single human "
-        "touch. It books appointments straight onto your calendar — "
-        "transcribed, scored and ready to close."
+        "Warm Follow closes that gap. It's an AI agent that responds "
+        "to every inbound text, call and voicemail in under a minute, "
+        "and runs multi-week outbound cadences for months without a "
+        "human touching them. Only booked, qualified appointments land "
+        "on your calendar."
     )
     y = wrap_text(c, body2, MARGIN, y - 0.15 * inch,
                   PAGE_W - 2 * MARGIN, size=11.5, leading=17)
 
     body3 = (
-        "This booklet is a 12-page tour of what Warm Follow does, who "
-        "it's built for, and the numbers our customers are putting up "
-        "right now."
+        "This 12-page tour walks you through what Warm Follow does, "
+        "the actual numbers our customers are putting up right now, "
+        "and how to get it live on your CRM in under a week."
     )
     wrap_text(c, body3, MARGIN, y - 0.15 * inch,
               PAGE_W - 2 * MARGIN, size=11.5, leading=17)
@@ -271,10 +332,10 @@ def page_02_welcome(c: canvas.Canvas):
     c.setFont("Helvetica", 11)
     items = [
         "1.  The follow-up gap that costs investors and agents six figures a year",
-        "2.  How Warm Follow's AI texts, calls and books — with zero human touch",
-        "3.  Playbooks for real estate investors and real estate agents",
-        "4.  Real customer numbers: 227 appointments, $100K+ closed, 0 hrs human time",
-        "5.  How to book your live demo and see it run on your CRM",
+        "2.  One agent. Four channels. Running 24/7.",
+        "3.  A real cadence: 5 touches, 49 days, 0 human minutes — booked",
+        "4.  Live customer numbers: 193+ appts, $100K+ closed, 91% positive sentiment",
+        "5.  Pricing, GHL onboarding and how to book a live demo",
     ]
     yy = box_y + 1.2 * inch
     for it in items:
@@ -285,115 +346,176 @@ def page_02_welcome(c: canvas.Canvas):
 
 
 # ---------- Page 3 — The Problem ----------
-def page_03_problem(c: canvas.Canvas):
+def page_03_problem(c):
     fill_bg(c, white)
     header_band(c)
 
-    kicker(c, "Before Warm Follow", PAGE_H - 1.4 * inch)
-    big_headline(c, "Phone tag", PAGE_H - 1.95 * inch, size=32)
-    big_headline(c, "with ghosts.", PAGE_H - 2.45 * inch, size=32,
+    kicker(c, "The Problem", PAGE_H - 1.4 * inch)
+
+    big_headline(c, "Real estate pros lose", PAGE_H - 1.95 * inch, size=24)
+    big_headline(c, "deals in the follow-up —", PAGE_H - 2.4 * inch, size=24)
+    big_headline(c, "not the pitch.", PAGE_H - 2.85 * inch, size=24,
                  color=CORAL)
-    divider(c, PAGE_H - 2.7 * inch)
+    divider(c, PAGE_H - 3.1 * inch)
 
     intro = (
-        "Real estate investors and agents lose deals in the follow-up — "
-        "not the pitch. Most leads go cold because no one has the "
-        "bandwidth to keep showing up. Here's what that actually looks "
-        "like in the wild:"
+        "Whether you work motivated sellers, cash buyers, expireds, "
+        "open-house sign-ins or your own sphere — most leads go cold "
+        "because nobody reaches back fast enough. Tire-kickers eat "
+        "your hours. Hot prospects slip to whoever calls them first. "
+        "Manual follow-up doesn't scale past one person."
     )
-    wrap_text(c, intro, MARGIN, PAGE_H - 3.05 * inch,
+    wrap_text(c, intro, MARGIN, PAGE_H - 3.5 * inch,
               PAGE_W - 2 * MARGIN, size=11.5, leading=17, color=GRAY)
 
-    pains = [
-        ("Leads ghost for hours",
-         "while you're driving, in another call, or working a "
-         "contract. Speed-to-lead is measured in hours, not seconds."),
-        ("You chase tire-kickers",
-         "who never had real intent, while the motivated sellers "
-         "bounce to the next agent who actually picks up."),
-        ("Cadences die at touch #1",
-         "because nobody on your team has the time — or the discipline — "
-         "to send the 5th, 6th, 9th nudge that actually books the deal."),
-        ("Aged leads rot in your CRM",
-         "forever. Every name on that list cost you money. Most of "
-         "them never get a second touch."),
-    ]
-    y = PAGE_H - 3.6 * inch
-    for title, body in pains:
-        y = feature_row(c, MARGIN, y, title, body, bullet="✕")
-        y -= 0.15 * inch
+    # Before/After two-column
+    col_w = (PAGE_W - 2 * MARGIN - 0.25 * inch) / 2
+    top = 1.0 * inch
+    box_h = 4.0 * inch
+    base_y = top
+    pad = 0.25 * inch
 
-    # Bottom callout
-    cy = 1.0 * inch
+    # Before card
     c.setFillColor(CREAM)
-    c.roundRect(MARGIN, cy, PAGE_W - 2 * MARGIN, 0.85 * inch, 8,
+    c.roundRect(MARGIN, base_y + 0.4 * inch, col_w, box_h, 10,
                 stroke=0, fill=1)
-    c.setFillColor(NAVY)
-    c.setFont("Helvetica-Oblique", 11.5)
-    c.drawString(MARGIN + 0.25 * inch, cy + 0.5 * inch,
-                 "“The deal you don't follow up on is the deal "
-                 "your competitor closes next month.”")
+    c.setFillColor(GRAY)
     c.setFont("Helvetica-Bold", 9)
-    c.setFillColor(CORAL)
-    c.drawString(MARGIN + 0.25 * inch, cy + 0.22 * inch,
-                 "— Every top producer who ever lost a contract to a faster phone")
+    c.drawString(MARGIN + pad, base_y + 0.4 * inch + box_h - 0.3 * inch,
+                 "BEFORE WARM FOLLOW")
+    c.setFillColor(NAVY)
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(MARGIN + pad, base_y + 0.4 * inch + box_h - 0.65 * inch,
+                 "Phone tag with ghosts")
+    pains = [
+        "Leads sit for hours while you're in a contract or on another call",
+        "You chase tire-kickers who never had real intent",
+        "Long follow-up sequences die after touch #2",
+        "Speed-to-lead measured in hours, not seconds",
+        "Aged leads sit untouched in your CRM forever",
+    ]
+    py = base_y + 0.4 * inch + box_h - 1.0 * inch
+    for p in pains:
+        c.setFillColor(CORAL_DARK)
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(MARGIN + pad, py, "—")
+        wrap_text(c, p, MARGIN + pad + 0.2 * inch, py,
+                  col_w - 2 * pad - 0.2 * inch,
+                  size=10, leading=13, color=GRAY)
+        py -= 0.55 * inch
+
+    # After card
+    bx = MARGIN + col_w + 0.25 * inch
+    c.setFillColor(SKY)
+    c.roundRect(bx, base_y + 0.4 * inch, col_w, box_h, 10,
+                stroke=0, fill=1)
+    c.setFillColor(SKY_TEXT)
+    c.setFont("Helvetica-Bold", 9)
+    c.drawString(bx + pad, base_y + 0.4 * inch + box_h - 0.3 * inch,
+                 "AFTER WARM FOLLOW")
+    c.setFillColor(NAVY)
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(bx + pad, base_y + 0.4 * inch + box_h - 0.65 * inch,
+                 "Every lead, worked forever.")
+    wins = [
+        "AI responds to inbound texts, calls and voicemails in under a minute",
+        "Outbound cadences run for months without a human touching them",
+        "Only booked, qualified appointments land on your calendar",
+        "Voice agent handles live inbound calls — transcribed and scored",
+        "You spend time writing contracts, not dialing back dead leads",
+    ]
+    py = base_y + 0.4 * inch + box_h - 1.0 * inch
+    for w in wins:
+        c.setFillColor(SKY_TEXT)
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(bx + pad, py, "✓")
+        wrap_text(c, w, bx + pad + 0.2 * inch, py,
+                  col_w - 2 * pad - 0.2 * inch,
+                  size=10, leading=13, color=NAVY)
+        py -= 0.55 * inch
 
     footer(c, 3)
 
 
-# ---------- Page 4 — Introducing ----------
-def page_04_introducing(c: canvas.Canvas):
+# ---------- Page 4 — One agent. Four channels. ----------
+def page_04_one_agent(c):
     fill_bg(c, NAVY)
     c.setFillColor(CORAL)
     c.rect(0, 0, 0.35 * inch, PAGE_H, stroke=0, fill=1)
 
-    c.setFillColor(CORAL)
-    c.setFont("Helvetica-Bold", 10)
-    c.drawString(MARGIN, PAGE_H - 1.2 * inch, "AFTER WARM FOLLOW")
+    c.setFillColor(SKY)
+    c.setFont("Helvetica-Bold", 9.5)
+    c.circle(MARGIN + 0.06 * inch, PAGE_H - 1.16 * inch, 0.06 * inch,
+             stroke=0, fill=1)
+    c.drawString(MARGIN + 0.22 * inch, PAGE_H - 1.2 * inch,
+                 "HOW IT WORKS")
 
     c.setFillColor(white)
-    c.setFont("Helvetica-Bold", 46)
-    c.drawString(MARGIN, PAGE_H - 2.1 * inch, "Every lead,")
-    c.drawString(MARGIN, PAGE_H - 2.7 * inch, "worked forever.")
+    c.setFont("Helvetica-Bold", 42)
+    c.drawString(MARGIN, PAGE_H - 2.0 * inch, "One agent.")
+    c.drawString(MARGIN, PAGE_H - 2.6 * inch, "Four channels.")
+    c.setFillColor(CORAL)
+    c.drawString(MARGIN, PAGE_H - 3.2 * inch, "Running 24/7.")
 
     c.setFillColor(HexColor("#D7DCE6"))
-    sub = ("Warm Follow is one AI agent doing the job of a 24/7 ISA "
-           "team — at a fraction of the cost. It texts, calls, and "
-           "books on your behalf, with empathy, persistence and the "
-           "confidence to keep showing up.")
-    wrap_text(c, sub, MARGIN, PAGE_H - 3.25 * inch,
-              PAGE_W - 2 * MARGIN, size=13, leading=18,
+    sub = ("Warm Follow listens on every channel your leads use — "
+           "investor or agent — and only hands off when there's a "
+           "confirmed appointment waiting.")
+    wrap_text(c, sub, MARGIN, PAGE_H - 3.75 * inch,
+              PAGE_W - 2 * MARGIN, size=12, leading=16,
               color=HexColor("#D7DCE6"))
 
-    pillars = [
-        ("Responds",
-         "AI replies to every inbound text, call and voicemail in "
-         "under 60 seconds — day or night."),
-        ("Reaches out",
-         "Multi-week outbound cadences across SMS, AI voice and "
-         "ringless voicemail run with zero human input."),
-        ("Books",
-         "Qualified leads land on your calendar — transcripts, "
-         "scoring and context delivered before you pick up."),
+    # Six channel cards (2 columns x 3 rows)
+    channels = [
+        ("01", "Inbound text & reply",
+         "AI reads the thread, references the property, and replies in your tone. No canned lines. No delays.",
+         "Median response 47 seconds"),
+        ("02", "Inbound voice agent",
+         "Live voice AI picks up calls your team misses, qualifies the lead, and books to your calendar.",
+         "Full transcript · sentiment scored"),
+        ("03", "Outbound cadences",
+         "Multi-week SMS + voice sequences nudge cold leads back into conversation. Branches on reply, time and intent.",
+         "Up to 11 touches · zero manual work"),
+        ("04", "Voicemail + SMS drops",
+         "Short, human-sounding voicemail followed by text the same minute. Catches sellers who ignore calls.",
+         "Paired drop + immediate SMS"),
+        ("05", "Calendar booking",
+         "Once intent is confirmed, AI books the slot, sends reminders, and writes to your pipeline automatically.",
+         "193+ appointments booked to date"),
+        ("06", "Built on your CRM",
+         "Drops into GoHighLevel and fires through your numbers, your brand, your cadences. Live in under a week.",
+         "GHL-native · live in 7 days"),
     ]
-    y = PAGE_H - 5.2 * inch
-    for title, body in pillars:
-        c.setFillColor(CORAL)
-        c.setFont("Helvetica-Bold", 16)
-        c.drawString(MARGIN, y, title.upper())
-        wrap_text(c, body, MARGIN + 1.6 * inch, y,
-                  PAGE_W - 2 * MARGIN - 1.6 * inch,
-                  size=11, leading=15.5, color=HexColor("#D7DCE6"))
-        y -= 0.85 * inch
+    col_w = (PAGE_W - 2 * MARGIN - 0.2 * inch) / 2
+    row_h = 1.45 * inch
+    top = PAGE_H - 6.05 * inch
+    for i, (num, title, body, foot) in enumerate(channels):
+        row = i // 2
+        col = i % 2
+        x = MARGIN + col * (col_w + 0.2 * inch)
+        y = top - row * (row_h + 0.15 * inch)
+        c.setFillColor(NAVY_SOFT)
+        c.roundRect(x, y, col_w, row_h, 8, stroke=0, fill=1)
+        c.setFillColor(SKY)
+        c.setFont("Helvetica-Bold", 8)
+        c.drawRightString(x + col_w - 0.2 * inch, y + row_h - 0.25 * inch, num)
+        c.setFillColor(white)
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(x + 0.2 * inch, y + row_h - 0.35 * inch, title)
+        wrap_text(c, body, x + 0.2 * inch, y + row_h - 0.6 * inch,
+                  col_w - 0.4 * inch, size=9.5, leading=12.5,
+                  color=HexColor("#C7CFDD"))
+        c.setFillColor(SKY)
+        c.setFont("Helvetica-Bold", 8.5)
+        c.drawString(x + 0.2 * inch, y + 0.2 * inch, foot + "  →")
 
-    # CTA strip
+    # Bottom strip
     c.setFillColor(CORAL)
     c.rect(0, 0.7 * inch, PAGE_W, 0.45 * inch, stroke=0, fill=1)
     c.setFillColor(white)
     c.setFont("Helvetica-Bold", 11)
     c.drawCentredString(PAGE_W / 2, 0.9 * inch,
                         "Set it up once. Warm Follow does the rest.  →  warmfollow.com")
-
     c.setFillColor(HexColor("#A9B6CC"))
     c.setFont("Helvetica", 8)
     c.drawString(MARGIN, 0.4 * inch,
@@ -401,139 +523,263 @@ def page_04_introducing(c: canvas.Canvas):
     c.drawRightString(PAGE_W - MARGIN, 0.4 * inch, "Page 4 of 12")
 
 
-# ---------- Page 5 — How it works ----------
-def page_05_how_it_works(c: canvas.Canvas):
+# ---------- Page 5 — Live conversation case ----------
+def page_05_live_thread(c):
     fill_bg(c, CREAM)
     header_band(c)
 
-    kicker(c, "How It Works", PAGE_H - 1.4 * inch)
-    big_headline(c, "Three steps from", PAGE_H - 1.95 * inch, size=30)
-    big_headline(c, "lead to booked call.", PAGE_H - 2.4 * inch, size=30,
+    kicker(c, "Live Conversations", PAGE_H - 1.4 * inch)
+    big_headline(c, "Real threads that", PAGE_H - 1.95 * inch, size=30)
+    big_headline(c, "booked real appts.", PAGE_H - 2.4 * inch, size=30,
                  color=CORAL)
     divider(c, PAGE_H - 2.65 * inch)
 
-    steps = [
-        ("01", "Plug Warm Follow into your CRM",
-         "Connect HubSpot, Salesforce, your brokerage stack or any "
-         "lead source via the API. Warm Follow ingests every new "
-         "lead and every aged record, automatically."),
-        ("02", "Pick a playbook (or bring your own)",
-         "Choose from prebuilt cadences for motivated sellers, cash "
-         "buyers, sphere, expired listings, open houses and more. "
-         "Tune the tone, set the goal, hit go."),
-        ("03", "AI texts, calls and books — you take contracts",
-         "Warm Follow responds in under 60 seconds, runs multi-week "
-         "voice and SMS cadences, qualifies on the call, and drops "
-         "booked appointments straight onto your calendar."),
-    ]
+    intro = (
+        "Every message below was sent or received by the AI agent — "
+        "no human in the loop. Identifying details preserved from the "
+        "actual customer workspace."
+    )
+    wrap_text(c, intro, MARGIN, PAGE_H - 3.0 * inch,
+              PAGE_W - 2 * MARGIN, size=11, leading=15, color=GRAY)
 
-    y = PAGE_H - 3.2 * inch
-    for num, title, body in steps:
-        c.setFillColor(NAVY)
-        c.circle(MARGIN + 0.4 * inch, y - 0.05 * inch, 0.4 * inch,
-                 stroke=0, fill=1)
-        c.setFillColor(white)
-        c.setFont("Helvetica-Bold", 18)
-        c.drawCentredString(MARGIN + 0.4 * inch, y - 0.18 * inch, num)
+    # Two-column case study layout
+    col_w = (PAGE_W - 2 * MARGIN - 0.25 * inch) / 2
+    top = 1.4 * inch
+    box_h = 4.7 * inch
 
-        c.setFillColor(NAVY)
-        c.setFont("Helvetica-Bold", 14)
-        c.drawString(MARGIN + 1.0 * inch, y, title)
-        ny = wrap_text(c, body, MARGIN + 1.0 * inch, y - 0.25 * inch,
-                       PAGE_W - 2 * MARGIN - 1.0 * inch,
-                       size=11, leading=15, color=GRAY)
-        y = ny - 0.25 * inch
+    # Left: SMS thread mock
+    c.setFillColor(white)
+    c.setStrokeColor(GRAY_LIGHT)
+    c.setLineWidth(0.5)
+    c.roundRect(MARGIN, top, col_w, box_h, 10, stroke=1, fill=1)
 
-    # Time-to-value badge
-    c.setFillColor(CORAL)
-    c.roundRect(MARGIN, 1.0 * inch, PAGE_W - 2 * MARGIN, 0.7 * inch, 10,
+    # Header in card
+    c.setFillColor(NAVY)
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(MARGIN + 0.3 * inch, top + box_h - 0.35 * inch,
+                 "James Williams")
+    c.setFillColor(GRAY)
+    c.setFont("Helvetica", 9)
+    c.drawString(MARGIN + 0.3 * inch, top + box_h - 0.55 * inch,
+                 "Lead · 3306 Meadowbridge Rd")
+
+    # Tags
+    tag_y = top + box_h - 0.85 * inch
+    c.setFillColor(SKY)
+    c.roundRect(MARGIN + 0.3 * inch, tag_y, 0.55 * inch, 0.2 * inch, 8,
+                stroke=0, fill=1)
+    c.setFillColor(SKY_TEXT)
+    c.setFont("Helvetica-Bold", 8)
+    c.drawCentredString(MARGIN + 0.3 * inch + 0.275 * inch, tag_y + 0.06 * inch,
+                        "AI HANDLED")
+    c.setFillColor(HexColor("#D7F5DC"))
+    c.roundRect(MARGIN + 0.95 * inch, tag_y, 0.5 * inch, 0.2 * inch, 8,
+                stroke=0, fill=1)
+    c.setFillColor(GREEN)
+    c.setFont("Helvetica-Bold", 8)
+    c.drawCentredString(MARGIN + 0.95 * inch + 0.25 * inch, tag_y + 0.06 * inch,
+                        "BOOKED")
+
+    # Date pill
+    c.setFillColor(HexColor("#EFE6DA"))
+    c.roundRect(MARGIN + col_w / 2 - 0.55 * inch, tag_y - 0.5 * inch,
+                1.1 * inch, 0.25 * inch, 10, stroke=0, fill=1)
+    c.setFillColor(GRAY)
+    c.setFont("Helvetica", 9)
+    c.drawCentredString(MARGIN + col_w / 2, tag_y - 0.34 * inch,
+                        "Feb 14, 2026")
+
+    # Bubble (AI message in coral)
+    bubble_x = MARGIN + 0.3 * inch
+    bubble_w = col_w - 0.9 * inch
+    bubble_y = tag_y - 0.7 * inch
+    bubble_h = 2.3 * inch
+    c.setFillColor(SKY_TEXT)
+    c.roundRect(bubble_x, bubble_y - bubble_h, bubble_w, bubble_h, 10,
                 stroke=0, fill=1)
     c.setFillColor(white)
-    c.setFont("Helvetica-Bold", 13)
-    c.drawCentredString(PAGE_W / 2, 1.45 * inch,
-                        "RESPONDS TO EVERY LEAD IN UNDER 60 SECONDS — DAY OR NIGHT")
-    c.setFont("Helvetica", 9)
-    c.drawCentredString(PAGE_W / 2, 1.22 * inch,
-                        "Most customers book their first AI-driven appointment inside the first week.")
+    c.setFont("Helvetica-Bold", 8)
+    c.drawString(bubble_x + 0.15 * inch, bubble_y - 0.2 * inch,
+                 "AI · WARM FOLLOW")
+    msg = ("James, it's Corey. Did you sell the house yet? If not "
+           "let's talk — I need to commit to a purchase before end of "
+           "month. Call or text when you get a chance.")
+    wrap_text(c, msg, bubble_x + 0.15 * inch, bubble_y - 0.4 * inch,
+              bubble_w - 0.3 * inch,
+              size=10, leading=13.5, color=white)
+    c.setFillColor(HexColor("#A9C0E5"))
+    c.setFont("Helvetica", 8)
+    c.drawString(bubble_x + 0.15 * inch, bubble_y - bubble_h + 0.15 * inch,
+                 "09:56 AM")
+
+    # Right: "What happened" panel
+    px = MARGIN + col_w + 0.25 * inch
+    c.setFillColor(NAVY)
+    c.roundRect(px, top, col_w, box_h, 10, stroke=0, fill=1)
+    c.setFillColor(SKY)
+    c.setFont("Helvetica-Bold", 9)
+    c.drawString(px + 0.3 * inch, top + box_h - 0.35 * inch,
+                 "WHAT HAPPENED")
+    c.setFillColor(white)
+    c.setFont("Helvetica-Bold", 18)
+    c.drawString(px + 0.3 * inch, top + box_h - 0.7 * inch,
+                 "Warm Follow ran")
+    c.drawString(px + 0.3 * inch, top + box_h - 0.95 * inch,
+                 "this cadence for")
+    c.setFillColor(CORAL)
+    c.drawString(px + 0.3 * inch, top + box_h - 1.2 * inch,
+                 "49 days.")
+
+    body = ("Five touches over seven weeks. No human intervention. The "
+            "lead went cold at touch #2, warmed again at touch #4, and "
+            "eventually converted on a later outbound call.")
+    wrap_text(c, body, px + 0.3 * inch, top + box_h - 1.55 * inch,
+              col_w - 0.6 * inch,
+              size=10.5, leading=14.5, color=HexColor("#C7CFDD"))
+
+    # Stat grid 2x2
+    grid_top = top + 0.3 * inch
+    cells = [("TOUCHES", "5"), ("DAYS IN CADENCE", "49"),
+             ("AI TOKENS USED", "2,141"), ("HUMAN MINUTES", "0")]
+    cw = (col_w - 0.6 * inch) / 2
+    ch = 0.95 * inch
+    for i, (lbl, val) in enumerate(cells):
+        cr = i // 2
+        cc = i % 2
+        cx = px + 0.3 * inch + cc * (cw + 0.05 * inch)
+        cy = grid_top + (1 - cr) * (ch + 0.1 * inch)
+        c.setStrokeColor(HexColor("#3a4a64"))
+        c.setLineWidth(0.5)
+        c.line(cx, cy, cx + cw, cy)
+        c.setFillColor(SKY)
+        c.setFont("Helvetica-Bold", 8.5)
+        c.drawString(cx, cy + 0.6 * inch, lbl)
+        c.setFillColor(white)
+        c.setFont("Helvetica-Bold", 22)
+        c.drawString(cx, cy + 0.2 * inch, val)
 
     footer(c, 5)
 
 
-# ---------- Page 6 — Features ----------
-def page_06_features(c: canvas.Canvas):
+# ---------- Page 6 — By the numbers + ROI table ----------
+def page_06_numbers(c):
     fill_bg(c, white)
     header_band(c)
 
-    kicker(c, "Everything You Need To Convert", PAGE_H - 1.4 * inch)
-    big_headline(c, "A complete lead", PAGE_H - 1.95 * inch, size=28)
-    big_headline(c, "follow-up platform.", PAGE_H - 2.4 * inch, size=28,
+    kicker(c, "ROI · Real Numbers", PAGE_H - 1.4 * inch)
+    big_headline(c, "Six figures in", PAGE_H - 1.95 * inch, size=28)
+    big_headline(c, "assignments. Zero", PAGE_H - 2.4 * inch, size=28)
+    big_headline(c, "hours dialing dead", PAGE_H - 2.85 * inch, size=28,
                  color=CORAL)
-    divider(c, PAGE_H - 2.65 * inch)
+    big_headline(c, "leads.", PAGE_H - 3.3 * inch, size=28, color=CORAL)
+    divider(c, PAGE_H - 3.55 * inch)
 
-    features = [
-        ("AI-Powered Follow-Up",
-         "Responds to every inbound lead in under 60 seconds. Runs "
-         "multi-week outreach cadences automatically and adapts to "
-         "every reply."),
-        ("Multi-Channel Campaigns",
-         "SMS, AI voice calls and ringless voicemail — all in one "
-         "sequence, with a consistent persona and tone of voice."),
-        ("CRM & Pipeline Management",
-         "Drops naturally into your existing brokerage workflow — "
-         "HubSpot, Salesforce, your custom stack. Every interaction "
-         "logged, tagged and pushed to the right stage."),
-        ("Appointment Scheduling",
-         "Books qualified leads straight onto your calendar with "
-         "reminders and reschedules — no copy/paste, no dropped handoffs."),
-        ("Lead Scoring",
-         "Every call and text is transcribed and scored. The hottest "
-         "leads get flagged for a human callback first."),
-        ("Analytics Dashboard",
-         "Discover which messages convert. Every send, every reply, "
-         "every booked appointment — visible in real time."),
+    intro = ("The math on one investor's Warm Follow engagement, "
+             "Dec 8, 2025 → Apr 18, 2026. Every figure pulled directly "
+             "from the customer's GoHighLevel workspace. Agent customers "
+             "report similar lift on sphere, expired and open-house "
+             "pipelines.")
+    wrap_text(c, intro, MARGIN, PAGE_H - 3.95 * inch,
+              PAGE_W - 2 * MARGIN, size=11, leading=15, color=GRAY)
+
+    # ROI table card (mirrors site)
+    card_y = 1.0 * inch
+    card_h = 5.2 * inch
+    c.setFillColor(white)
+    c.setStrokeColor(GRAY_LIGHT)
+    c.setLineWidth(0.6)
+    c.roundRect(MARGIN, card_y, PAGE_W - 2 * MARGIN, card_h, 10,
+                stroke=1, fill=1)
+
+    rows = [
+        ("Appointments booked by AI", "193"),
+        ("Confirmed (vs. cancelled)", "192  ·  99%"),
+        ("Wholesale assignments closed", "$100,000+"),
+        ("Active opportunities worked", "1,521"),
+        ("Avg AI response (inbound text)", "47 s"),
+        ("Call sentiment (scored calls)", "91% positive"),
+        ("Human follow-up hours spent", "0"),
+        ("Hours saved vs. manual dialing*", "~480 hrs"),
     ]
-    y = PAGE_H - 3.1 * inch
-    for title, body in features:
-        y = feature_row(c, MARGIN, y, title, body)
-        y -= 0.15 * inch
+    row_h = (card_h - 1.3 * inch) / len(rows)
+    for i, (label, val) in enumerate(rows):
+        ry = card_y + card_h - 0.4 * inch - (i + 1) * row_h
+        c.setFillColor(NAVY)
+        c.setFont("Helvetica", 11.5)
+        c.drawString(MARGIN + 0.35 * inch, ry + row_h - 0.28 * inch, label)
+        c.setFillColor(NAVY)
+        c.setFont("Helvetica-Bold", 13)
+        c.drawRightString(PAGE_W - MARGIN - 0.35 * inch,
+                          ry + row_h - 0.28 * inch, val)
+        c.setStrokeColor(HexColor("#E5E5E5"))
+        c.setLineWidth(0.4)
+        c.line(MARGIN + 0.35 * inch, ry,
+               PAGE_W - MARGIN - 0.35 * inch, ry)
+
+    # Effective value row
+    ev_y = card_y + 0.45 * inch
+    c.setStrokeColor(NAVY)
+    c.setLineWidth(1.2)
+    c.line(MARGIN + 0.35 * inch, ev_y + 0.35 * inch,
+           PAGE_W - MARGIN - 0.35 * inch, ev_y + 0.35 * inch)
+    c.setFillColor(NAVY)
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(MARGIN + 0.35 * inch, ev_y + 0.05 * inch,
+                 "Effective value")
+    c.setFillColor(SKY_TEXT)
+    c.setFont("Helvetica-Bold", 22)
+    c.drawRightString(PAGE_W - MARGIN - 0.35 * inch, ev_y + 0.05 * inch,
+                      "Priceless.")
+
+    # Footnote
+    wrap_text(c,
+              "* Based on 1,521 leads × avg. 3 touches × 6 min/touch "
+              "if worked manually. Figures pulled from client's GHL "
+              "workspace; raw export available on request.",
+              MARGIN + 0.35 * inch, card_y + 0.3 * inch,
+              PAGE_W - 2 * MARGIN - 0.7 * inch,
+              font="Helvetica-Oblique", size=8.5, leading=11, color=GRAY)
 
     footer(c, 6)
 
 
 # ---------- Page 7 — For Investors ----------
-def page_07_for_investors(c: canvas.Canvas):
+def page_07_for_investors(c):
     fill_bg(c, CREAM)
     header_band(c)
 
     kicker(c, "For Real Estate Investors", PAGE_H - 1.4 * inch)
     big_headline(c, "Wholesalers, flippers,", PAGE_H - 1.95 * inch, size=28)
-    big_headline(c, "landlords — your", PAGE_H - 2.4 * inch, size=28)
-    big_headline(c, "lists finally pay off.", PAGE_H - 2.85 * inch, size=28,
+    big_headline(c, "landlords — every", PAGE_H - 2.4 * inch, size=28)
+    big_headline(c, "lead, worked forever.", PAGE_H - 2.85 * inch, size=28,
                  color=CORAL)
     divider(c, PAGE_H - 3.1 * inch)
 
     intro = (
-        "Cold lists, skip-traced numbers, driving-for-dollars routes "
-        "and PPC leads all need the same thing: relentless, compliant "
-        "follow-up. Warm Follow runs that follow-up while you go "
-        "acquire the next deal."
+        "Cold lists, skip-traced numbers, driving-for-dollars routes, "
+        "PPC leads — they all need the same thing: relentless, "
+        "compliant follow-up. Warm Follow runs that follow-up while "
+        "you go acquire the next deal."
     )
     wrap_text(c, intro, MARGIN, PAGE_H - 3.45 * inch,
               PAGE_W - 2 * MARGIN, size=11.5, leading=17, color=GRAY)
 
     plays = [
         ("Motivated Seller Nurture",
-         "Multi-week SMS + AI voice cadence designed for tired "
-         "landlords, pre-foreclosures and inherited properties."),
+         "Multi-week SMS + AI voice cadence for tired landlords, "
+         "pre-foreclosures and inherited properties. Branches on "
+         "reply, time-of-day and intent."),
         ("Cash-Buyer List Activation",
          "Drip your buyer list with new contracts and JV "
-         "opportunities — sorted by buy box automatically."),
+         "opportunities. AI calls, qualifies and tees up only the "
+         "serious ones."),
         ("Wholesale Disposition",
-         "AI calls and texts your filtered buyers, scores replies, "
-         "and tees up only the serious ones for you to close."),
+         "Texts every filtered buyer the same minute a contract "
+         "lands. Books showings and assignment calls automatically."),
         ("Aged Lead Resurrection",
          "Pull every dead lead out of your CRM and let Warm Follow "
-         "warm them up again — without you typing a thing."),
+         "warm them back up. The James Williams case (page 5) was a "
+         "49-day resurrection."),
     ]
     y = PAGE_H - 4.7 * inch
     for title, body in plays:
@@ -545,56 +791,57 @@ def page_07_for_investors(c: canvas.Canvas):
                        size=10.5, leading=14, color=GRAY)
         y = ny - 0.1 * inch
 
-    # ROI strip
+    # Founder quote ROI strip
     c.setFillColor(CORAL)
-    c.roundRect(MARGIN, 0.95 * inch, PAGE_W - 2 * MARGIN, 1.0 * inch, 10,
+    c.roundRect(MARGIN, 0.95 * inch, PAGE_W - 2 * MARGIN, 1.15 * inch, 10,
                 stroke=0, fill=1)
     c.setFillColor(white)
-    c.setFont("Helvetica-Bold", 13)
-    c.drawString(MARGIN + 0.3 * inch, 1.7 * inch,
-                 "ONE EXTRA ASSIGNMENT PAYS FOR A YEAR OF WARM FOLLOW.")
-    c.setFont("Helvetica", 10.5)
+    c.setFont("Helvetica-Oblique", 11.5)
     wrap_text(c,
-              "Our founder Corey closed a small and a large assignment "
-              "without picking up the phone once. Warm Follow handled "
-              "every inbound and outbound touch.",
-              MARGIN + 0.3 * inch, 1.45 * inch,
+              "“I stopped calling leads back months ago. The AI handles "
+              "every inbound and every follow-up. I spend my time "
+              "writing contracts — not chasing ghosts.”",
+              MARGIN + 0.3 * inch, 1.92 * inch,
               PAGE_W - 2 * MARGIN - 0.6 * inch,
-              size=10.5, leading=14, color=white)
+              font="Helvetica-Oblique", size=11, leading=14.5, color=white)
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(MARGIN + 0.3 * inch, 1.15 * inch,
+                 "— Corey Vickers, Founder · VA Home Offer (six figures in assignments closed)")
 
     footer(c, 7)
 
 
 # ---------- Page 8 — For Agents ----------
-def page_08_for_agents(c: canvas.Canvas):
+def page_08_for_agents(c):
     fill_bg(c, white)
     header_band(c)
 
     kicker(c, "For Real Estate Agents", PAGE_H - 1.4 * inch)
-    big_headline(c, "Your sphere, your", PAGE_H - 1.95 * inch, size=30)
-    big_headline(c, "open houses, your", PAGE_H - 2.4 * inch, size=30)
-    big_headline(c, "expireds — handled.", PAGE_H - 2.85 * inch, size=30,
+    big_headline(c, "Your sphere, your", PAGE_H - 1.95 * inch, size=28)
+    big_headline(c, "open houses, your", PAGE_H - 2.4 * inch, size=28)
+    big_headline(c, "expireds — handled.", PAGE_H - 2.85 * inch, size=28,
                  color=CORAL)
     divider(c, PAGE_H - 3.1 * inch)
 
     intro = (
         "Warm Follow plugs into the way real agents actually work. "
         "Drop a sign-in sheet, snap a business card, forward a Zillow "
-        "inquiry — every lead is captured and warmed up before the "
-        "next showing ends."
+        "inquiry — every lead is captured, qualified by AI voice, and "
+        "warmed up before the next showing ends."
     )
     wrap_text(c, intro, MARGIN, PAGE_H - 3.45 * inch,
               PAGE_W - 2 * MARGIN, size=11.5, leading=17, color=GRAY)
 
     plays = [
         ("Open House Follow-Up",
-         "AI cadence over 60 days that turns weekend visitors into "
-         "listing appointments — without you ever typing a recap text."),
+         "Inbound voice agent answers when buyers call back from "
+         "the sign. Outbound cadence turns weekend visitors into "
+         "listing appointments."),
         ("Sphere Re-Engagement",
-         "Quarterly check-ins with your past clients and friends, in "
-         "your voice, on autopilot."),
+         "Quarterly check-ins to past clients in your voice. They "
+         "think you personally remembered their home-bought-day."),
         ("Expired Listings",
-         "Same-day SMS + AI voice combo that books the listing "
+         "Same-day SMS + AI voice combo books the listing "
          "appointment before the next agent calls."),
         ("Buyer Nurture",
          "New listings, price drops and market updates delivered "
@@ -610,274 +857,339 @@ def page_08_for_agents(c: canvas.Canvas):
                        size=10.5, leading=14, color=GRAY)
         y = ny - 0.1 * inch
 
-    # Quote card
+    # Why agents choose card
     c.setFillColor(NAVY)
-    c.roundRect(MARGIN, 0.95 * inch, PAGE_W - 2 * MARGIN, 1.05 * inch, 10,
+    c.roundRect(MARGIN, 0.95 * inch, PAGE_W - 2 * MARGIN, 1.15 * inch, 10,
                 stroke=0, fill=1)
-    c.setFillColor(white)
-    c.setFont("Helvetica-Oblique", 11.5)
-    wrap_text(c,
-              "“My past clients think I personally text them on their "
-              "birthday and home-bought-day. I haven't typed those "
-              "messages in months — Warm Follow does it for me, in my "
-              "voice.”",
-              MARGIN + 0.3 * inch, 1.78 * inch,
-              PAGE_W - 2 * MARGIN - 0.6 * inch,
-              font="Helvetica-Oblique", size=11, leading=15, color=white)
     c.setFillColor(CORAL)
-    c.setFont("Helvetica-Bold", 9)
-    c.drawString(MARGIN + 0.3 * inch, 1.1 * inch,
-                 "— Realtor® using Warm Follow on her sphere of 1,200")
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(MARGIN + 0.3 * inch, 1.85 * inch,
+                 "WHY REAL ESTATE PROS CHOOSE WARM FOLLOW")
+    c.setFillColor(white)
+    c.setFont("Helvetica-Bold", 11)
+    items = [
+        "Save Time — automate routine follow-up so you can close",
+        "Increase Revenue — convert more leads with AI nurturing",
+        "Stay Compliant — TCPA, CAN-SPAM and carrier rules built in",
+    ]
+    yy = 1.6 * inch
+    for it in items:
+        c.setFillColor(CORAL)
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(MARGIN + 0.3 * inch, yy, "✓")
+        c.setFillColor(white)
+        c.setFont("Helvetica", 10.5)
+        c.drawString(MARGIN + 0.55 * inch, yy, it)
+        yy -= 0.2 * inch
 
     footer(c, 8)
 
 
-# ---------- Page 9 — Proven Results ----------
-def page_09_results(c: canvas.Canvas):
-    fill_bg(c, NAVY)
-    c.setFillColor(CORAL)
-    c.rect(0, PAGE_H - 0.55 * inch, PAGE_W, 0.55 * inch, stroke=0, fill=1)
+# ---------- Page 9 — Voice agent dashboard ----------
+def page_09_voice_dash(c):
+    fill_bg(c, CREAM)
+    header_band(c)
+
+    kicker(c, "Voice Agent Dashboard", PAGE_H - 1.4 * inch)
+    big_headline(c, "79 inbound calls.", PAGE_H - 1.95 * inch, size=26)
+    big_headline(c, "91% positive.", PAGE_H - 2.4 * inch, size=26,
+                 color=CORAL)
+    big_headline(c, "Average 42 seconds.", PAGE_H - 2.85 * inch, size=26)
+    divider(c, PAGE_H - 3.1 * inch)
+
+    intro = (
+        "Thirty-day slice of one Warm Follow customer's voice agent "
+        "activity. The AI handles every inbound call that would "
+        "otherwise go to voicemail — and triggers actions in the CRM "
+        "automatically."
+    )
+    wrap_text(c, intro, MARGIN, PAGE_H - 3.45 * inch,
+              PAGE_W - 2 * MARGIN, size=11.5, leading=17, color=GRAY)
+
+    # Dashboard mock card
+    dash_y = 1.0 * inch
+    dash_h = 4.55 * inch
     c.setFillColor(white)
-    c.setFont("Helvetica-Bold", 10)
-    c.drawString(MARGIN, PAGE_H - 0.35 * inch, "WARM FOLLOW")
-    c.drawRightString(PAGE_W - MARGIN, PAGE_H - 0.35 * inch,
-                      "PROVEN RESULTS · REAL CLIENTS · REAL NUMBERS")
+    c.setStrokeColor(GRAY_LIGHT)
+    c.setLineWidth(0.6)
+    c.roundRect(MARGIN, dash_y, PAGE_W - 2 * MARGIN, dash_h, 10,
+                stroke=1, fill=1)
 
-    c.setFillColor(CORAL)
-    c.setFont("Helvetica-Bold", 10)
-    c.drawString(MARGIN, PAGE_H - 1.4 * inch, "BY THE NUMBERS")
-    c.setFillColor(white)
-    c.setFont("Helvetica-Bold", 30)
-    c.drawString(MARGIN, PAGE_H - 1.95 * inch, "Proven results.")
-    c.setFillColor(CORAL)
-    c.drawString(MARGIN, PAGE_H - 2.4 * inch, "Real numbers.")
+    c.setFillColor(NAVY)
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(MARGIN + 0.3 * inch, dash_y + dash_h - 0.4 * inch,
+                 "AI Agents · Dashboard & Logs")
+    c.setFillColor(GRAY)
+    c.setFont("Helvetica", 10)
+    c.drawString(MARGIN + 0.3 * inch, dash_y + dash_h - 0.6 * inch,
+                 "Mar 19  →  Apr 18, 2026  ·  All agents")
 
-    c.setStrokeColor(CORAL)
-    c.setLineWidth(2.5)
-    c.line(MARGIN, PAGE_H - 2.65 * inch,
-           MARGIN + 0.6 * inch, PAGE_H - 2.65 * inch)
-
-    c.setFillColor(HexColor("#D7DCE6"))
-    c.setFont("Helvetica", 11.5)
-    wrap_text(c,
-              "Built for two types of real estate professionals — "
-              "investors and agents. Below is the actual scoreboard "
-              "from Warm Follow's customer base.",
-              MARGIN, PAGE_H - 3.0 * inch, PAGE_W - 2 * MARGIN,
-              size=11.5, leading=16, color=HexColor("#D7DCE6"))
-
-    # Big stats — actual homepage figures
-    stats = [
-        ("193", "appointments booked"),
-        ("$100K+", "closed in deals"),
-        ("0 hrs", "human follow-up time"),
-    ]
-    box_w = (PAGE_W - 2 * MARGIN - 0.4 * inch) / 3
-    box_h = 1.7 * inch
-    top = PAGE_H - 5.0 * inch
-    for i, (num, lbl) in enumerate(stats):
-        x = MARGIN + i * (box_w + 0.2 * inch)
-        c.setFillColor(white)
-        c.roundRect(x, top, box_w, box_h, 10, stroke=0, fill=1)
-        c.setFillColor(CORAL)
-        c.setFont("Helvetica-Bold", 32)
-        c.drawCentredString(x + box_w / 2, top + box_h - 0.65 * inch, num)
-        c.setFillColor(NAVY)
-        c.setFont("Helvetica", 10)
-        line = ""
-        lines = []
-        for w in lbl.split():
-            test = (line + " " + w).strip()
-            if c.stringWidth(test, "Helvetica", 10) <= box_w - 0.3 * inch:
-                line = test
-            else:
-                lines.append(line)
-                line = w
-        if line:
-            lines.append(line)
-        ly = top + 0.55 * inch
-        for ln in lines:
-            c.drawCentredString(x + box_w / 2, ly, ln)
-            ly -= 13
-
-    # Founder quote
-    c.setFillColor(CORAL)
-    c.roundRect(MARGIN, 1.4 * inch, PAGE_W - 2 * MARGIN, 1.55 * inch, 10,
+    # Tab pills
+    tab_y = dash_y + dash_h - 1.05 * inch
+    c.setFillColor(NAVY)
+    c.roundRect(MARGIN + 0.3 * inch, tab_y, 0.9 * inch, 0.3 * inch, 8,
                 stroke=0, fill=1)
     c.setFillColor(white)
-    c.setFont("Helvetica-Oblique", 13)
-    wrap_text(c,
-              "“I stopped calling leads back months ago. The AI handles "
-              "every inbound and every follow-up. I spend my time "
-              "writing contracts — not chasing ghosts.”",
-              MARGIN + 0.3 * inch, 2.7 * inch,
-              PAGE_W - 2 * MARGIN - 0.6 * inch,
-              font="Helvetica-Oblique", size=12.5, leading=17, color=white)
     c.setFont("Helvetica-Bold", 10)
-    c.drawString(MARGIN + 0.3 * inch, 1.6 * inch,
-                 "— Corey Anderson, Founder, Warm Follow")
+    c.drawCentredString(MARGIN + 0.3 * inch + 0.45 * inch,
+                        tab_y + 0.1 * inch, "Inbound")
+    c.setFillColor(GRAY)
+    c.setFont("Helvetica", 10)
+    c.drawString(MARGIN + 1.3 * inch, tab_y + 0.1 * inch, "Outbound")
 
+    # Three big metric cards
+    metrics = [
+        ("TOTAL CALLS", "79", "↑ 12 vs. previous 30 days"),
+        ("ACTIONS TRIGGERED", "9", "Appts booked, leads updated, notes written"),
+        ("SENTIMENT", "91 %", "Positive · scored on every completed call"),
+    ]
+    cw = (PAGE_W - 2 * MARGIN - 0.6 * inch - 0.3 * inch) / 3
+    ch = 1.6 * inch
+    cy = dash_y + 1.4 * inch
+    for i, (lbl, val, sub) in enumerate(metrics):
+        cx = MARGIN + 0.3 * inch + i * (cw + 0.15 * inch)
+        c.setFillColor(CREAM if i != 1 else SKY)
+        c.roundRect(cx, cy, cw, ch, 8, stroke=0, fill=1)
+        c.setFillColor(GRAY)
+        c.setFont("Helvetica-Bold", 8.5)
+        c.drawString(cx + 0.2 * inch, cy + ch - 0.3 * inch, lbl)
+        c.setFillColor(NAVY)
+        c.setFont("Helvetica-Bold", 30)
+        c.drawString(cx + 0.2 * inch, cy + 0.6 * inch, val)
+        c.setFillColor(GRAY)
+        c.setFont("Helvetica", 8.5)
+        wrap_text(c, sub, cx + 0.2 * inch, cy + 0.4 * inch,
+                  cw - 0.4 * inch, size=8.5, leading=11, color=GRAY)
+
+    # Bottom info row — total/avg call duration
+    sub_y = cy - 1.05 * inch
+    c.setFillColor(GRAY)
+    c.setFont("Helvetica-Bold", 8.5)
+    c.drawString(MARGIN + 0.3 * inch, sub_y + 0.7 * inch, "TOTAL DURATION")
+    c.setFillColor(NAVY)
+    c.setFont("Helvetica-Bold", 22)
+    c.drawString(MARGIN + 0.3 * inch, sub_y + 0.4 * inch, "54")
+    c.setFont("Helvetica", 12)
+    c.drawString(MARGIN + 0.85 * inch, sub_y + 0.42 * inch, "mins")
+
+    c.setFillColor(GRAY)
+    c.setFont("Helvetica-Bold", 8.5)
+    c.drawString(MARGIN + 3.3 * inch, sub_y + 0.7 * inch,
+                 "AVERAGE CALL DURATION")
+    c.setFillColor(NAVY)
+    c.setFont("Helvetica-Bold", 22)
+    c.drawString(MARGIN + 3.3 * inch, sub_y + 0.4 * inch, "0.7")
+    c.setFont("Helvetica", 12)
+    c.drawString(MARGIN + 3.85 * inch, sub_y + 0.42 * inch, "mins")
+
+    footer(c, 9)
+
+
+# ---------- Page 10 — Built on your CRM (GHL) ----------
+def page_10_ghl(c):
+    fill_bg(c, NAVY)
+    c.setFillColor(CORAL)
+    c.rect(0, 0, 0.35 * inch, PAGE_H, stroke=0, fill=1)
+
+    c.setFillColor(SKY)
+    c.setFont("Helvetica-Bold", 9.5)
+    c.circle(MARGIN + 0.06 * inch, PAGE_H - 1.16 * inch, 0.06 * inch,
+             stroke=0, fill=1)
+    c.drawString(MARGIN + 0.22 * inch, PAGE_H - 1.2 * inch,
+                 "ROLLOUT")
+
+    c.setFillColor(white)
+    c.setFont("Helvetica-Bold", 38)
+    c.drawString(MARGIN, PAGE_H - 2.0 * inch, "Drops into your CRM.")
+    c.setFillColor(CORAL)
+    c.drawString(MARGIN, PAGE_H - 2.55 * inch, "Live in 7 days.")
+
+    c.setFillColor(HexColor("#D7DCE6"))
+    sub = ("Warm Follow is GoHighLevel-native. It plugs into your "
+           "existing GHL sub-account and fires through your numbers, "
+           "your brand, your cadences. Your team keeps the records — "
+           "AI does all the reaching out.")
+    wrap_text(c, sub, MARGIN, PAGE_H - 3.2 * inch,
+              PAGE_W - 2 * MARGIN, size=12.5, leading=18,
+              color=HexColor("#D7DCE6"))
+
+    # Rollout timeline
+    days = [
+        ("DAY 1", "Kickoff & GHL connect",
+         "30-min onboarding call. We connect to your GHL sub-account, "
+         "map cadences, set the AI voice + tone."),
+        ("DAY 2-4", "Cadences + voice training",
+         "Prebuilt motivated-seller and cash-buyer playbooks loaded "
+         "and tuned to your market and pricing scripts."),
+        ("DAY 5-7", "Test, go live",
+         "Live test against a sandbox lead. Numbers warmed and "
+         "registered. AI starts answering inbound and running "
+         "outbound on day 7."),
+    ]
+    y = PAGE_H - 4.6 * inch
+    for tag, title, body in days:
+        c.setFillColor(CORAL)
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(MARGIN, y, tag)
+        c.setFillColor(white)
+        c.setFont("Helvetica-Bold", 14)
+        c.drawString(MARGIN + 1.2 * inch, y, title)
+        wrap_text(c, body, MARGIN + 1.2 * inch, y - 0.22 * inch,
+                  PAGE_W - 2 * MARGIN - 1.2 * inch,
+                  size=10.5, leading=14, color=HexColor("#C7CFDD"))
+        y -= 0.95 * inch
+
+    # Bottom strip
+    c.setFillColor(CORAL)
+    c.rect(0, 0.7 * inch, PAGE_W, 0.45 * inch, stroke=0, fill=1)
+    c.setFillColor(white)
+    c.setFont("Helvetica-Bold", 11)
+    c.drawCentredString(PAGE_W / 2, 0.9 * inch,
+                        "GHL-NATIVE  ·  LIVE IN 7 DAYS  ·  warmfollow.com")
     c.setFillColor(HexColor("#A9B6CC"))
     c.setFont("Helvetica", 8)
     c.drawString(MARGIN, 0.4 * inch,
                  "Warm Follow — AI follow-up that books real estate appointments while you sleep.")
-    c.drawRightString(PAGE_W - MARGIN, 0.4 * inch, "Page 9 of 12")
+    c.drawRightString(PAGE_W - MARGIN, 0.4 * inch, "Page 10 of 12")
 
 
-# ---------- Page 10 — Autopilot ----------
-def page_10_autopilot(c: canvas.Canvas):
-    fill_bg(c, CREAM)
-    header_band(c)
-
-    kicker(c, "Plus, Everything Runs on Autopilot", PAGE_H - 1.4 * inch)
-    big_headline(c, "Set it once.", PAGE_H - 1.95 * inch, size=32)
-    big_headline(c, "Forget it forever.", PAGE_H - 2.45 * inch, size=32,
-                 color=CORAL)
-    divider(c, PAGE_H - 2.7 * inch)
-
-    intro = (
-        "Warm Follow handles the repetitive work of following up so "
-        "you can focus on closing deals and growing your portfolio. "
-        "Here's what runs in the background while you sleep, drive, "
-        "show, or sit at the closing table:"
-    )
-    wrap_text(c, intro, MARGIN, PAGE_H - 3.05 * inch,
-              PAGE_W - 2 * MARGIN, size=11.5, leading=17, color=GRAY)
-
-    autopilot = [
-        ("Inbound replies in <60 seconds",
-         "AI responds to every inbound text, call and voicemail "
-         "in under a minute — day or night, weekends included."),
-        ("Outbound cadences for weeks or months",
-         "Multi-step SMS + voice campaigns run with zero manual "
-         "input — and adapt to every reply along the way."),
-        ("AI voice agent that qualifies",
-         "Live calls answered, transcribed and scored. Only "
-         "qualified leads get routed to your phone."),
-        ("CRM stays clean automatically",
-         "Every conversation is logged, tagged, and pushed to "
-         "the right pipeline stage. No data entry. Ever."),
-    ]
-    y = PAGE_H - 3.6 * inch
-    for title, body in autopilot:
-        c.setFillColor(CORAL)
-        c.circle(MARGIN + 0.07 * inch, y + 0.05 * inch, 0.07 * inch,
-                 stroke=0, fill=1)
-        c.setFillColor(NAVY)
-        c.setFont("Helvetica-Bold", 12)
-        c.drawString(MARGIN + 0.3 * inch, y, title)
-        ny = wrap_text(c, body, MARGIN + 0.3 * inch, y - 0.22 * inch,
-                       PAGE_W - 2 * MARGIN - 0.3 * inch,
-                       size=10.5, leading=14, color=GRAY)
-        y = ny - 0.15 * inch
-
-    # Hours-saved card
-    c.setFillColor(NAVY)
-    c.roundRect(MARGIN, 1.0 * inch, PAGE_W - 2 * MARGIN, 1.0 * inch, 10,
-                stroke=0, fill=1)
-    c.setFillColor(CORAL)
-    c.setFont("Helvetica-Bold", 11)
-    c.drawString(MARGIN + 0.3 * inch, 1.75 * inch,
-                 "WHAT THIS BUYS BACK")
-    c.setFillColor(white)
-    c.setFont("Helvetica", 11)
-    wrap_text(c,
-              "Every customer we've onboarded reports the same thing: "
-              "no more 10pm catch-up calls, no more 'I'll get to it "
-              "tomorrow' regrets, and no more aged leads rotting in the "
-              "CRM. Warm Follow turns follow-up from a chore into an asset.",
-              MARGIN + 0.3 * inch, 1.5 * inch,
-              PAGE_W - 2 * MARGIN - 0.6 * inch,
-              size=10.5, leading=14.5, color=white)
-
-    footer(c, 10)
-
-
-# ---------- Page 11 — Demo & next steps ----------
-def page_11_demo(c: canvas.Canvas):
+# ---------- Page 11 — Pricing ----------
+def page_11_pricing(c):
     fill_bg(c, white)
     header_band(c)
 
-    kicker(c, "Book a Live Demo", PAGE_H - 1.4 * inch)
-    big_headline(c, "30 minutes.", PAGE_H - 1.95 * inch, size=32)
-    big_headline(c, "Your CRM. No slides.", PAGE_H - 2.45 * inch, size=32,
+    kicker(c, "Choose Your Plan", PAGE_H - 1.4 * inch)
+    big_headline(c, "Scale your real estate", PAGE_H - 1.95 * inch, size=26)
+    big_headline(c, "business with AI.", PAGE_H - 2.4 * inch, size=26,
                  color=CORAL)
-    divider(c, PAGE_H - 2.7 * inch)
+    divider(c, PAGE_H - 2.65 * inch)
 
-    intro = (
-        "Watch Warm Follow text, call and book in real time against a "
-        "live test lead on your CRM. No deck, no fluff — just the "
-        "system doing what it was built to do."
-    )
-    wrap_text(c, intro, MARGIN, PAGE_H - 3.05 * inch,
-              PAGE_W - 2 * MARGIN, size=11.5, leading=17, color=GRAY)
+    intro = ("Start small or go all-in. Every plan includes the AI Voice "
+             "Agent, AI SMS Agent, Appointment Scheduling and "
+             "Integrations — only the volume and white-glove level changes.")
+    wrap_text(c, intro, MARGIN, PAGE_H - 3.0 * inch,
+              PAGE_W - 2 * MARGIN, size=11, leading=15, color=GRAY)
 
-    # What you'll see
-    c.setFillColor(NAVY)
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(MARGIN, PAGE_H - 3.6 * inch, "What you'll see in 30 minutes")
-
-    points = [
-        "A new lead lands and gets a personalized SMS in under 60 seconds.",
-        "The AI voice agent calls back, qualifies the lead and reads the recap.",
-        "A booked appointment lands on a real Google / Outlook calendar.",
-        "Every transcript and score syncs into your CRM in real time.",
-        "We answer your toughest 'will it really work for my market?' questions.",
+    plans = [
+        ("STARTER", "$99", "/mo", "$500 onboarding",
+         "Agents getting started with AI nurturing.",
+         ["Unlimited contacts",
+          "5 active campaigns",
+          "Basic analytics",
+          "AI Voice + SMS Agents",
+          "Appointment scheduling",
+          "Integrations"],
+         False, False),
+        ("PROFESSIONAL", "$499", "/mo", "$999 onboarding",
+         "Teams ready to scale with full AI capabilities.",
+         ["Unlimited contacts",
+          "Unlimited campaigns",
+          "Advanced analytics",
+          "AI Voice + SMS Agents",
+          "Dedicated account manager",
+          "75 VA hours / month"],
+         True, False),
+        ("ENTERPRISE", "$1,497", "/mo", "$1,500 onboarding",
+         "White-glove with website + ad management.",
+         ["Everything in Professional",
+          "150 VA hours / month",
+          "Custom website build",
+          "Ad management included",
+          "Dedicated success manager",
+          "Quarterly strategy reviews"],
+         False, True),
     ]
-    y = PAGE_H - 4.0 * inch
-    c.setFont("Helvetica", 11)
-    c.setFillColor(GRAY)
-    for p in points:
-        c.setFillColor(CORAL)
-        c.setFont("Helvetica-Bold", 11)
-        c.drawString(MARGIN, y, "✓")
-        c.setFillColor(GRAY)
+    box_w = (PAGE_W - 2 * MARGIN - 0.3 * inch) / 3
+    box_h = 4.4 * inch
+    top = PAGE_H - 7.65 * inch
+    for i, (name, price, suffix, onboard, blurb, perks,
+            popular, best) in enumerate(plans):
+        x = MARGIN + i * (box_w + 0.15 * inch)
+        bg = NAVY if popular else white
+        border = NAVY if popular else GRAY_LIGHT
+        head_color = CORAL if popular else NAVY
+        sub_color = white if popular else NAVY
+        body_color = HexColor("#D7DCE6") if popular else GRAY
+
+        c.setStrokeColor(border)
+        c.setLineWidth(1)
+        c.setFillColor(bg)
+        c.roundRect(x, top, box_w, box_h, 10, stroke=1, fill=1)
+
+        if popular or best:
+            c.setFillColor(CORAL if popular else GOLD)
+            c.roundRect(x, top + box_h - 0.3 * inch, box_w, 0.3 * inch, 10,
+                        stroke=0, fill=1)
+            c.setFillColor(white if popular else NAVY)
+            c.setFont("Helvetica-Bold", 9)
+            c.drawCentredString(x + box_w / 2, top + box_h - 0.2 * inch,
+                                "MOST POPULAR" if popular else "BEST VALUE")
+
+        c.setFillColor(head_color)
+        c.setFont("Helvetica-Bold", 12)
+        c.drawCentredString(x + box_w / 2, top + box_h - 0.7 * inch, name)
+
+        c.setFillColor(sub_color)
+        c.setFont("Helvetica-Bold", 26)
+        c.drawCentredString(x + box_w / 2, top + box_h - 1.2 * inch, price)
         c.setFont("Helvetica", 11)
-        wrap_text(c, p, MARGIN + 0.25 * inch, y,
-                  PAGE_W - 2 * MARGIN - 0.25 * inch,
-                  size=11, leading=15, color=GRAY)
-        y -= 0.32 * inch
+        c.drawCentredString(x + box_w / 2, top + box_h - 1.42 * inch,
+                            suffix.strip())
 
-    # Two big CTAs
-    btn_y = 1.55 * inch
-    btn_h = 0.85 * inch
-    btn_w = (PAGE_W - 2 * MARGIN - 0.3 * inch) / 2
+        c.setFillColor(body_color)
+        c.setFont("Helvetica-Oblique", 9)
+        c.drawCentredString(x + box_w / 2, top + box_h - 1.7 * inch, onboard)
 
-    # Primary
+        c.setFont("Helvetica", 9.5)
+        wrap_text(c, blurb, x + 0.2 * inch, top + box_h - 1.95 * inch,
+                  box_w - 0.4 * inch, size=9.5, leading=12.5, color=body_color)
+
+        py = top + box_h - 2.55 * inch
+        for perk in perks:
+            c.setFillColor(CORAL)
+            c.setFont("Helvetica-Bold", 10)
+            c.drawString(x + 0.2 * inch, py, "✓")
+            c.setFillColor(body_color)
+            c.setFont("Helvetica", 9.5)
+            c.drawString(x + 0.42 * inch, py, perk)
+            py -= 0.24 * inch
+
+    # Add-ons strip
+    addon_y = 1.0 * inch
     c.setFillColor(CORAL)
-    c.roundRect(MARGIN, btn_y, btn_w, btn_h, 10, stroke=0, fill=1)
-    c.setFillColor(white)
-    c.setFont("Helvetica-Bold", 12)
-    c.drawCentredString(MARGIN + btn_w / 2, btn_y + 0.55 * inch,
-                        "BOOK YOUR FREE DEMO")
-    c.setFont("Helvetica", 10)
-    c.drawCentredString(MARGIN + btn_w / 2, btn_y + 0.28 * inch,
-                        "warmfollow.com  ·  hello@warmfollow.com")
-
-    # Secondary
-    c.setFillColor(NAVY)
-    c.roundRect(MARGIN + btn_w + 0.3 * inch, btn_y, btn_w, btn_h, 10,
+    c.roundRect(MARGIN, addon_y, PAGE_W - 2 * MARGIN, 1.2 * inch, 10,
                 stroke=0, fill=1)
     c.setFillColor(white)
-    c.setFont("Helvetica-Bold", 12)
-    c.drawCentredString(MARGIN + btn_w + 0.3 * inch + btn_w / 2,
-                        btn_y + 0.55 * inch, "BUY THE SYSTEM TODAY")
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(MARGIN + 0.3 * inch, addon_y + 0.95 * inch,
+                 "BOOST ANY PLAN WITH ADD-ONS")
     c.setFont("Helvetica", 10)
-    c.drawCentredString(MARGIN + btn_w + 0.3 * inch + btn_w / 2,
-                        btn_y + 0.28 * inch, "warmfollow.com  ·  view pricing")
+    addons = [
+        "Premium Support  $500/mo",
+        "Pay-Per-Lead  $75 – $250/lead",
+        "Website Dev  $750 – $2,500",
+        "AI VA Part-Time  $800/mo",
+        "AI VA Full-Time  $1,500/mo",
+    ]
+    ay = addon_y + 0.7 * inch
+    for a in addons:
+        c.drawString(MARGIN + 0.3 * inch, ay, "•  " + a)
+        ay -= 0.13 * inch
 
     footer(c, 11)
 
 
 # ---------- Page 12 — Back Cover ----------
-def page_12_back_cover(c: canvas.Canvas):
+def page_12_back_cover(c):
     fill_bg(c, NAVY)
 
+    # Brand mark
+    c.setFillColor(CORAL)
+    c.circle(MARGIN + 0.07 * inch, PAGE_H - 0.83 * inch, 0.09 * inch,
+             stroke=0, fill=1)
     c.setFillColor(white)
     c.setFont("Helvetica-Bold", 12)
-    c.drawString(MARGIN, PAGE_H - 0.9 * inch, "WARM FOLLOW")
-    c.setFillColor(CORAL)
-    c.circle(MARGIN + 1.45 * inch, PAGE_H - 0.87 * inch, 4, stroke=0, fill=1)
+    c.drawString(MARGIN + 0.25 * inch, PAGE_H - 0.9 * inch, "WARM FOLLOW")
 
     c.setFillColor(CORAL)
     c.setFont("Helvetica-Bold", 10)
@@ -885,17 +1197,17 @@ def page_12_back_cover(c: canvas.Canvas):
 
     c.setFillColor(white)
     c.setFont("Helvetica-Bold", 42)
-    c.drawString(MARGIN, PAGE_H - 3.0 * inch, "Stop chasing")
-    c.drawString(MARGIN, PAGE_H - 3.6 * inch, "leads. Start")
+    c.drawString(MARGIN, PAGE_H - 3.0 * inch, "Ready to transform")
+    c.drawString(MARGIN, PAGE_H - 3.6 * inch, "your lead")
     c.setFillColor(CORAL)
-    c.drawString(MARGIN, PAGE_H - 4.2 * inch, "closing them.")
+    c.drawString(MARGIN, PAGE_H - 4.2 * inch, "follow-up?")
 
     c.setFillColor(HexColor("#D7DCE6"))
     wrap_text(c,
               "See Warm Follow texting, dialing and booking in real "
               "time against a live test lead. 30 minutes. Your CRM. "
               "No slides.",
-              MARGIN, PAGE_H - 4.7 * inch,
+              MARGIN, PAGE_H - 4.8 * inch,
               PAGE_W - 2 * MARGIN, size=12.5, leading=18,
               color=HexColor("#D7DCE6"))
 
@@ -915,12 +1227,12 @@ def page_12_back_cover(c: canvas.Canvas):
                  f"or email  {EMAIL}")
     c.setFont("Helvetica", 10)
     c.drawString(MARGIN + 0.4 * inch, 3.25 * inch,
-                 "Mention this booklet for a personalized onboarding session.")
+                 "Mention this booklet for a personalized GHL onboarding.")
 
     # Three quick reasons
-    reasons = ["AI voice + SMS in one stack",
-               "Plugs into your CRM",
-               "Built for real estate"]
+    reasons = ["GHL-native · live in 7 days",
+               "AI voice + SMS in one stack",
+               "193+ appts booked to date"]
     rx = MARGIN
     for r in reasons:
         c.setFillColor(CORAL)
@@ -948,24 +1260,24 @@ def page_12_back_cover(c: canvas.Canvas):
 # ---------- Build ----------
 def build():
     c = canvas.Canvas(str(OUT), pagesize=LETTER)
-    c.setTitle("Warm Follow — Introductory Booklet for Realtors & Investors")
+    c.setTitle("Warm Follow — Introductory Booklet for Investors & Agents")
     c.setAuthor("Warm Follow")
     c.setSubject("AI follow-up that books real estate appointments while you sleep")
-    c.setKeywords(["Warm Follow", "real estate", "realtors",
-                   "investors", "AI follow-up", "lead nurture"])
+    c.setKeywords(["Warm Follow", "real estate", "investors", "realtors",
+                   "AI follow-up", "GoHighLevel", "GHL", "wholesale"])
 
     pages = [
         page_01_front_cover,
         page_02_welcome,
         page_03_problem,
-        page_04_introducing,
-        page_05_how_it_works,
-        page_06_features,
+        page_04_one_agent,
+        page_05_live_thread,
+        page_06_numbers,
         page_07_for_investors,
         page_08_for_agents,
-        page_09_results,
-        page_10_autopilot,
-        page_11_demo,
+        page_09_voice_dash,
+        page_10_ghl,
+        page_11_pricing,
         page_12_back_cover,
     ]
     for fn in pages:

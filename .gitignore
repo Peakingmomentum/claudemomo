@@ -1,4 +1,5 @@
 node_modules/
 dist/
+!booklet/dist/
 .env
 *.js.map
