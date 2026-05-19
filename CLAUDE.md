@@ -11,6 +11,8 @@ This file provides guidance to AI assistants (Claude and others) working in this
 **Runtime:** Node.js 20+, TypeScript (ESM)
 **Remote:** `Peakingmomentum/claudemomo`
 
+> **Sibling project:** `dealmind/` — full Next.js 14 SaaS scaffold (Supabase + Stripe + Claude + Google OAuth). See `dealmind/README.md` for setup. The two projects are independent.
+
 ---
 
 ## Project Structure
