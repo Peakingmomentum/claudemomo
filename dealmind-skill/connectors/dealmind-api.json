@@ -1,0 +1,89 @@
+{
+  "name": "dealmind",
+  "displayName": "DealMind API",
+  "description": "Connects to the authenticated user's DealMind workspace.",
+  "type": "http",
+  "baseUrl": "https://app.dealmind.ai/api/plugin",
+  "auth": {
+    "type": "api_key",
+    "header": "X-DealMind-Key",
+    "promptUser": "Paste your DealMind API key. Get one at https://app.dealmind.ai/settings/api"
+  },
+  "operations": {
+    "getProfile": {
+      "method": "GET",
+      "path": "/profile",
+      "description": "Returns the user's profile: name, copilot name, market, tone, role."
+    },
+    "getLeads": {
+      "method": "GET",
+      "path": "/leads",
+      "description": "List leads. Query params: stage, motivation, minDaysCold, search, limit.",
+      "parameters": {
+        "stage":        { "type": "string" },
+        "motivation":   { "type": "string" },
+        "minDaysCold":  { "type": "number" },
+        "search":       { "type": "string" },
+        "limit":        { "type": "number", "default": 50 }
+      }
+    },
+    "getLead": {
+      "method": "GET",
+      "path": "/leads/{leadId}",
+      "description": "Get a single lead with full history.",
+      "parameters": { "leadId": { "type": "string", "required": true } }
+    },
+    "createLead": {
+      "method": "POST",
+      "path": "/leads",
+      "description": "Create a new lead.",
+      "body": {
+        "name":       { "type": "string", "required": true },
+        "property":   { "type": "string" },
+        "phone":      { "type": "string" },
+        "email":      { "type": "string" },
+        "stage":      { "type": "string" },
+        "motivation": { "type": "string" },
+        "notes":      { "type": "string" }
+      }
+    },
+    "getActivity": {
+      "method": "GET",
+      "path": "/activity",
+      "description": "List activity events (stage changes, new leads, messages).",
+      "parameters": {
+        "since": { "type": "string", "description": "ISO timestamp or 'today_start'" }
+      }
+    },
+    "getCalendar": {
+      "method": "GET",
+      "path": "/calendar",
+      "description": "List calendar events for a given window.",
+      "parameters": {
+        "date":  { "type": "string", "description": "today | tomorrow | YYYY-MM-DD" }
+      }
+    },
+    "sendMessage": {
+      "method": "POST",
+      "path": "/messages/send",
+      "description": "Send a drafted message via the user's connected Gmail.",
+      "body": {
+        "leadId":  { "type": "string", "required": true },
+        "channel": { "type": "string", "enum": ["email", "text"], "required": true },
+        "subject": { "type": "string" },
+        "body":    { "type": "string", "required": true }
+      }
+    },
+    "saveDraft": {
+      "method": "POST",
+      "path": "/messages/draft",
+      "description": "Save a message as a draft in DealMind.",
+      "body": {
+        "leadId":  { "type": "string", "required": true },
+        "channel": { "type": "string", "enum": ["email", "text"], "required": true },
+        "subject": { "type": "string" },
+        "body":    { "type": "string", "required": true }
+      }
+    }
+  }
+}
