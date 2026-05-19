@@ -1,0 +1,29 @@
+{
+  "name": "dealmind",
+  "displayName": "DealMind",
+  "version": "0.1.0",
+  "description": "AI real estate copilot — pipeline tracking, daily briefings, EOD recaps, and outreach drafts. Connects to your DealMind workspace at dealmind.ai.",
+  "author": {
+    "name": "DealMind",
+    "url": "https://dealmind.ai"
+  },
+  "homepage": "https://dealmind.ai",
+  "license": "Proprietary",
+  "categories": ["sales", "real-estate", "productivity"],
+  "requires": {
+    "account": {
+      "url": "https://dealmind.ai",
+      "description": "Requires an active DealMind subscription. Sign up at https://dealmind.ai before installing this plugin."
+    }
+  },
+  "skills": [
+    "skills/dealmind-brief",
+    "skills/dealmind-leads",
+    "skills/dealmind-eod",
+    "skills/dealmind-followup",
+    "skills/dealmind-add-lead"
+  ],
+  "connectors": [
+    "connectors/dealmind-api.json"
+  ]
+}
