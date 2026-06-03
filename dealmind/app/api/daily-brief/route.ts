@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { buildDailyBriefSplit } from '@/lib/claude';
+import { fetchGhlBriefContext, type GhlBriefContext } from '@/lib/ghl';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,11 +33,23 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Pull GHL CRM activity (replies, appointments) when connected — best effort.
+  let ghlContext: GhlBriefContext | null = null;
+  if (profile.ghl_connected && profile.ghl_api_key && profile.ghl_location_id) {
+    try {
+      ghlContext = await fetchGhlBriefContext({
+        apiKey: profile.ghl_api_key,
+        locationId: profile.ghl_location_id,
+      });
+    } catch { /* brief still works without GHL */ }
+  }
+
   try {
     const brief = await buildDailyBriefSplit(
       profile as any,
       (leads || []) as any,
-      (calendar || []) as any
+      (calendar || []) as any,
+      ghlContext
     );
 
     // Cache it

@@ -118,6 +118,76 @@ export async function createGhlTask(
   }
 }
 
+// ─── Brief context ───────────────────────────────────────────
+// Pulls recent activity from the user's GHL location to enrich the daily brief:
+// who replied, who's gone quiet, and what's booked.
+
+export interface GhlBriefContext {
+  conversations: {
+    name: string;
+    lastMessage: string;
+    direction: 'inbound' | 'outbound' | 'unknown';
+    unread: boolean;
+    lastMessageDate?: string;
+  }[];
+  appointments: {
+    title: string;
+    startTime: string;
+    contactName?: string;
+  }[];
+}
+
+/**
+ * Fetch recent conversations and upcoming appointments from GHL for the brief.
+ * Best-effort: any sub-fetch that fails is skipped rather than failing the brief.
+ */
+export async function fetchGhlBriefContext(
+  creds: GhlCreds,
+): Promise<GhlBriefContext> {
+  const ctx: GhlBriefContext = { conversations: [], appointments: [] };
+
+  // Recent conversations — surfaces who messaged back / who's hot.
+  try {
+    const res = await fetch(
+      `${GHL_BASE}/conversations/search?locationId=${encodeURIComponent(creds.locationId)}&sortBy=last_message_date&sort=desc&limit=20`,
+      { headers: ghlHeaders(creds.apiKey) },
+    );
+    if (res.ok) {
+      const json: any = await res.json();
+      const convos: any[] = json.conversations || json.data || [];
+      ctx.conversations = convos.map(c => ({
+        name: c.contactName || c.fullName || c.name || 'Unknown',
+        lastMessage: (c.lastMessageBody || c.lastMessage || '').slice(0, 200),
+        direction: (c.lastMessageDirection === 'inbound' || c.lastMessageDirection === 'outbound')
+          ? c.lastMessageDirection : 'unknown' as const,
+        unread: (c.unreadCount ?? 0) > 0,
+        lastMessageDate: c.lastMessageDate || c.dateUpdated,
+      })).filter(c => c.lastMessage);
+    }
+  } catch { /* skip conversations on failure */ }
+
+  // Upcoming appointments (next 48h) — best effort; GHL needs a time window.
+  try {
+    const now = Date.now();
+    const end = now + 48 * 3600 * 1000;
+    const res = await fetch(
+      `${GHL_BASE}/calendars/events?locationId=${encodeURIComponent(creds.locationId)}&startTime=${now}&endTime=${end}`,
+      { headers: ghlHeaders(creds.apiKey) },
+    );
+    if (res.ok) {
+      const json: any = await res.json();
+      const events: any[] = json.events || json.data || [];
+      ctx.appointments = events.map(e => ({
+        title: e.title || e.appointmentStatus || 'Appointment',
+        startTime: e.startTime || e.start_time || '',
+        contactName: e.contactName || e.contact?.name,
+      })).filter(a => a.startTime);
+    }
+  } catch { /* skip appointments on failure */ }
+
+  return ctx;
+}
+
 /**
  * Convenience: upsert the lead as a contact, then text them. Returns the
  * GHL contactId on success so the caller can attach follow-up tasks.

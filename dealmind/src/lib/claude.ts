@@ -275,7 +275,11 @@ Rules: SMS messages must be under 160 chars. Use the lead's name. Be specific to
 export async function buildDailyBriefSplit(
   profile: DealMindUser,
   leads: Lead[],
-  calendar: CalendarEvent[]
+  calendar: CalendarEvent[],
+  ghlContext?: {
+    conversations: { name: string; lastMessage: string; direction: string; unread: boolean }[];
+    appointments: { title: string; startTime: string; contactName?: string }[];
+  } | null
 ): Promise<any> {
   const active    = leads.filter(l => !l.is_dead);
   const urgent    = active.filter(l => l.last_contact >= 7);
@@ -296,8 +300,23 @@ DEAD COLD (14+ days): ${noContact.map(l => l.name).join(', ') || 'none'}
 HOT LEADS: ${hot.map(l => l.name).join(', ') || 'none'}
 CALENDAR TODAY: ${calendar.length === 0 ? 'nothing scheduled' : calendar.map(c => c.title).join(', ')}`;
 
+  // GHL CRM activity — who replied, who's quiet, what's booked (if connected)
+  const ghlBlock = ghlContext && (ghlContext.conversations.length || ghlContext.appointments.length)
+    ? `
+CRM ACTIVITY (from GoHighLevel):
+RECENT REPLIES (leads who messaged back — these are HOT, prioritize them):
+${ghlContext.conversations.filter(c => c.direction === 'inbound').slice(0, 10)
+        .map(c => `• ${c.name}${c.unread ? ' (UNREAD)' : ''}: "${c.lastMessage.slice(0, 100)}"`).join('\n') || 'none'}
+AWAITING THEIR REPLY (you messaged last, no response yet):
+${ghlContext.conversations.filter(c => c.direction === 'outbound').slice(0, 8)
+        .map(c => `• ${c.name}: you said "${c.lastMessage.slice(0, 80)}"`).join('\n') || 'none'}
+BOOKED APPOINTMENTS (next 48h):
+${ghlContext.appointments.slice(0, 10)
+        .map(a => `• ${a.title}${a.contactName ? ` with ${a.contactName}` : ''} — ${a.startTime}`).join('\n') || 'none'}`
+    : '';
+
   // ── Haiku: generate structured todos + prospecting (cheap) ──
-  const todosPrompt = `${context}
+  const todosPrompt = `${context}${ghlBlock}
 
 Generate a prioritized action list for this real estate agent. Return ONLY valid JSON:
 {
@@ -308,18 +327,18 @@ Generate a prioritized action list for this real estate agent. Return ONLY valid
     { "action": "specific activity", "detail": "how to do it" }
   ]
 }
-Rules: 5-7 todos sorted by priority. Use real lead names. 2-3 prospecting items. Times realistic for ${timeOfDay}. Return ONLY JSON.`;
+Rules: 5-7 todos sorted by priority. Use real lead names. 2-3 prospecting items. Times realistic for ${timeOfDay}.${ghlBlock ? ' Leads who REPLIED (especially UNREAD) are the hottest — make calling/texting them back the top todos. Add a todo for each booked appointment.' : ''} Return ONLY JSON.`;
 
   // ── Sonnet: generate personality-driven greeting + insight ──
   const copilotName = profile.copilot_name || 'Ace';
   const insightPrompt = `You are ${copilotName}, an elite real estate AI copilot.
-${context}
+${context}${ghlBlock}
 
 Return ONLY valid JSON:
 {
   "greeting": "one energetic sentence greeting ${profile.user_name || 'them'} and setting the tone",
-  "focus": "one sentence on the single #1 priority today",
-  "insight": "one sharp tactical insight about their pipeline or positioning"
+  "focus": "one sentence on the single #1 priority today${ghlBlock ? ' — if a lead replied or there is an appointment booked, that is the priority' : ''}",
+  "insight": "one sharp tactical insight about their pipeline or positioning${ghlBlock ? ', referencing who replied or what is booked' : ''}"
 }
 Return ONLY JSON.`;
 
