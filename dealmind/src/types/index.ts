@@ -25,6 +25,18 @@ export interface DealMindUser {
   plan_activated_at: string | null;
   gmail_connected: boolean;
   gcal_connected: boolean;
+  outlook_connected: boolean;
+  propstream_api_key: string | null;
+  batchleads_api_key: string | null;
+  reiskip_api_key: string | null;
+  zapier_webhook_url: string | null;
+  slack_webhook_url: string | null;
+  warmfollow_api_key: string | null;
+  daily_brief_cache: string | null;
+  daily_brief_date: string | null;
+  gcal_access_token: string | null;
+  gcal_refresh_token: string | null;
+  gmail_token_expiry: string | null;
 }
 
 export interface Lead {
@@ -42,6 +54,15 @@ export interface Lead {
   phone: string | null;
   email: string | null;
   is_dead: boolean;
+  deal_value: number | null;
+  ai_enrichment: {
+    follow_up_sms: string[];
+    follow_up_email: string;
+    next_action: string;
+    motivation_signals: string[];
+    urgency: 'high' | 'medium' | 'low';
+    enriched_at: string;
+  } | null;
 }
 
 export interface ChatMessage {
@@ -61,6 +82,8 @@ export interface CalendarEvent {
   event_type: string | null;
   lead_id: string | null;
   synced_from: string | null;
+  description: string | null;
+  gcal_event_id: string | null;
 }
 
 export type FlagType =

@@ -33,6 +33,15 @@ export async function middleware(req: NextRequest) {
   }
 
   if (user && isProtected) {
+    if (process.env.SKIP_SUBSCRIPTION_CHECK === 'true') {
+      if (!path.startsWith('/dashboard')) {
+        const url = req.nextUrl.clone();
+        url.pathname = '/dashboard';
+        return NextResponse.redirect(url);
+      }
+      return res;
+    }
+
     const { data: profile } = await supabase
       .from('users')
       .select('subscription_status, onboarding_complete')

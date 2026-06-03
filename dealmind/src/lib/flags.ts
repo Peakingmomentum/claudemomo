@@ -10,10 +10,10 @@ interface FlagPayload {
 }
 
 const SLACK_MESSAGES: Record<FlagType, (u: FlagPayload['user']) => string> = {
-  NO_CRM:       u => `🚨 New DealMind user with NO CRM — warm lead for Warm Follow\n*${u.user_name}* | ${u.role} | ${u.city} | ${u.lead_count} leads`,
-  CRM_NOT_USED: u => `⚠️ DealMind user barely uses their CRM — warm lead for agency\n*${u.user_name}* | CRM: ${u.crm} | ${u.city}`,
-  NO_WEBSITE:   u => `🌐 DealMind user has NO WEBSITE — flag for website creation outreach\n*${u.user_name}* | ${u.role} | ${u.city}`,
-  HIGH_LEAD_COUNT: u => `📈 DealMind user has a HIGH LEAD COUNT — potential team/agency upsell\n*${u.user_name}* | ${u.role} | ${u.city} | ${u.lead_count} leads`
+  NO_CRM:       u => `🚨 New Pocket Pilot user with NO CRM — warm lead for Warm Follow\n*${u.user_name}* | ${u.role} | ${u.city} | ${u.lead_count} leads`,
+  CRM_NOT_USED: u => `⚠️ Pocket Pilot user barely uses their CRM — warm lead for agency\n*${u.user_name}* | CRM: ${u.crm} | ${u.city}`,
+  NO_WEBSITE:   u => `🌐 Pocket Pilot user has NO WEBSITE — flag for website creation outreach\n*${u.user_name}* | ${u.role} | ${u.city}`,
+  HIGH_LEAD_COUNT: u => `📈 Pocket Pilot user has a HIGH LEAD COUNT — potential team/agency upsell\n*${u.user_name}* | ${u.role} | ${u.city} | ${u.lead_count} leads`
 };
 
 export async function flagInternal({ type, user, context = {} }: FlagPayload) {
@@ -58,9 +58,9 @@ export async function flagInternal({ type, user, context = {} }: FlagPayload) {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          from: 'DealMind Alerts <alerts@dealmind.ai>',
+          from: 'Pocket Pilot Alerts <alerts@dealmind.ai>',
           to: process.env.INTERNAL_ALERT_EMAIL,
-          subject: `[DealMind Flag] ${type} — ${user.user_name}`,
+          subject: `[Pocket Pilot Flag] ${type} — ${user.user_name}`,
           text: SLACK_MESSAGES[type](user) + `\n\nContext:\n${JSON.stringify(flagRow.data, null, 2)}`
         })
       });

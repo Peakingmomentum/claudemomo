@@ -112,7 +112,7 @@ export default function OnboardingClient({ initialProfile }: { initialProfile: P
 
         <div className="card">
           {step === 1 && (
-            <Step title="Welcome to DealMind." subtitle="Let's start with your name.">
+            <Step title="Welcome to Pocket Pilot." subtitle="Let's start with your name.">
               <input
                 placeholder="Your first name"
                 value={form.user_name || ''}

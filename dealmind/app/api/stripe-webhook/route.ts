@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { stripe } from '@/lib/stripe';
+import { getStripe } from '@/lib/stripe';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
 import type Stripe from 'stripe';
 
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   const raw = await req.text();
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(raw, sig, process.env.STRIPE_WEBHOOK_SECRET!);
+    event = getStripe().webhooks.constructEvent(raw, sig, process.env.STRIPE_WEBHOOK_SECRET!);
   } catch (err) {
     return NextResponse.json({ error: `bad signature: ${(err as Error).message}` }, { status: 400 });
   }

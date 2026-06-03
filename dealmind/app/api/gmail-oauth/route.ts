@@ -11,9 +11,16 @@ export async function GET(req: NextRequest) {
 
   const url = new URL(req.url);
   const code = url.searchParams.get('code');
+  const stateParam = url.searchParams.get('state');
 
   if (!code) {
+    // user.id is passed as state so we can verify it on callback
     return NextResponse.redirect(getGoogleAuthUrl(user.id));
+  }
+
+  // CSRF check — state must match the authenticated user's id
+  if (!stateParam || stateParam !== user.id) {
+    return NextResponse.json({ error: 'invalid state' }, { status: 400 });
   }
 
   const oauth = createOAuth2Client();
@@ -23,6 +30,9 @@ export async function GET(req: NextRequest) {
   await admin.from('users').update({
     gmail_access_token:  tokens.access_token,
     gmail_refresh_token: tokens.refresh_token,
+    // also write to gcal_ columns so calendar sync can read them
+    gcal_access_token:   tokens.access_token,
+    gcal_refresh_token:  tokens.refresh_token,
     gmail_token_expiry:  tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null,
     gmail_connected: true,
     gcal_connected:  true

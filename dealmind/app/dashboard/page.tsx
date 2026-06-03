@@ -10,7 +10,9 @@ export default async function DashboardPage() {
   const [{ data: profile }, { data: leads }, { data: messages }, { data: calendar }] = await Promise.all([
     supabase.from('users').select('*').eq('id', user.id).single(),
     supabase.from('leads').select('*').eq('user_id', user.id).order('updated_at', { ascending: false }),
-    supabase.from('chat_messages').select('*').eq('user_id', user.id).order('created_at', { ascending: true }).limit(50),
+    supabase.from('chat_messages').select('*').eq('user_id', user.id)
+      .or('context.is.null,context.eq.chat')
+      .order('created_at', { ascending: true }).limit(50),
     supabase.from('calendar_events').select('*').eq('user_id', user.id).gte('event_date', new Date().toISOString()).order('event_date')
   ]);
 

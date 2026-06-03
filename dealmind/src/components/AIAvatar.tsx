@@ -13,7 +13,7 @@ export function AIAvatar({ active = false, size = 48, name }: Props) {
         style={{
           width: size, height: size, borderRadius: '50%',
           background: 'linear-gradient(135deg, var(--accent), var(--accent2))',
-          boxShadow: active ? '0 0 24px rgba(124,92,255,0.6)' : '0 0 0 transparent',
+          boxShadow: active ? '0 0 24px rgba(15,76,129,0.55)' : '0 0 0 transparent',
           transition: 'box-shadow .3s',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           color: 'white', fontWeight: 700, fontSize: size * 0.4
