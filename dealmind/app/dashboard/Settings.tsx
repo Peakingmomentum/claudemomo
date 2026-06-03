@@ -14,6 +14,23 @@ export function Settings({ profile }: Props) {
   const [saving, setSaving]       = useState(false);
   const [msg, setMsg]             = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
+  const [name, setName]           = useState(profile.user_name || '');
+  const [company, setCompany]     = useState(profile.company_name || '');
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileMsg, setProfileMsg]       = useState<string | null>(null);
+
+  async function saveProfile(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingProfile(true);
+    setProfileMsg(null);
+    const { error } = await supabase.from('users')
+      .update({ user_name: name.trim() || null, company_name: company.trim() || null })
+      .eq('id', profile.id);
+    setProfileMsg(error ? `Error: ${error.message}` : 'Saved ✓');
+    setSavingProfile(false);
+    setTimeout(() => setProfileMsg(null), 3000);
+  }
+
   async function setPassword(e: React.FormEvent) {
     e.preventDefault();
     if (newPass.length < 8) { setMsg({ type: 'err', text: 'Password must be at least 8 characters.' }); return; }
@@ -56,6 +73,38 @@ export function Settings({ profile }: Props) {
             <div style={{ fontSize: 13, color: 'var(--muted)' }}>{profile.email}</div>
           </div>
         </div>
+      </div>
+
+      {/* Outreach identity — feeds the signature on agent-sent texts */}
+      <div className="card">
+        <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--muted)', marginBottom: 4 }}>
+          Your Outreach Identity
+        </div>
+        <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>
+          Used to sign texts your copilot sends. Set these so messages never go out with a placeholder.
+        </p>
+        <form onSubmit={saveProfile} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <input
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="Your full name (e.g. Justin Rayside)"
+            aria-label="Your name"
+            style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 14, fontFamily: 'inherit', background: 'var(--surface)' }}
+          />
+          <input
+            value={company}
+            onChange={e => setCompany(e.target.value)}
+            placeholder="Your company (e.g. Certified Cash Offers)"
+            aria-label="Your company"
+            style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 14, fontFamily: 'inherit', background: 'var(--surface)' }}
+          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button className="btn" type="submit" disabled={savingProfile} style={{ alignSelf: 'flex-start' }}>
+              {savingProfile ? 'Saving…' : 'Save'}
+            </button>
+            {profileMsg && <span style={{ fontSize: 13, color: profileMsg.startsWith('Error') ? 'var(--danger)' : '#10b981' }}>{profileMsg}</span>}
+          </div>
+        </form>
       </div>
 
       {/* Set / change password */}

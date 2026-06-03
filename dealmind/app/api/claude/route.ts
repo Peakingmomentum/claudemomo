@@ -7,6 +7,19 @@ import { textLeadViaGhl, upsertGhlContact, createGhlTask, type GhlCreds } from '
 
 export const runtime = 'nodejs';
 
+// Detect unfilled placeholders so we never send a client a message with
+// "[Your Name]" or "{{company}}" still in it. Returns the offending tokens.
+function findPlaceholders(msg: string): string[] {
+  const hits = new Set<string>();
+  const bracketed = msg.match(/\[[^\]]*\]|\{\{[^}]*\}\}|<[^>]+>/g);
+  if (bracketed) bracketed.forEach(b => hits.add(b.trim()));
+  if (/\byour name\b/i.test(msg))    hits.add('your name');
+  if (/\byour company\b/i.test(msg)) hits.add('your company');
+  if (/\bagent name\b/i.test(msg))   hits.add('agent name');
+  if (/\bcompany name\b/i.test(msg)) hits.add('company name');
+  return [...hits];
+}
+
 // ─── Tool executor ────────────────────────────────────────────
 
 async function executeTool(
@@ -17,7 +30,9 @@ async function executeTool(
   leads: any[],
   slackWebhook: string | null,
   copilotName: string,
-  ghl: GhlCreds | null
+  ghl: GhlCreds | null,
+  senderName: string,
+  senderCompany: string | null
 ): Promise<{ result: string; action?: Record<string, any> }> {
 
   // Helper: resolve lead by id or name
@@ -29,6 +44,25 @@ async function executeTool(
 
   if (toolName === 'add_lead') {
     const { name, property, stage = 'New', motivation = 'Medium', phone, email, notes } = input;
+
+    // Dedup — never create a second lead with the same phone or email.
+    const digits = (phone || '').replace(/\D/g, '');
+    const emailNorm = (email || '').trim().toLowerCase();
+    if (digits || emailNorm) {
+      const existing = leads.find(l => {
+        const lp = (l.phone || '').replace(/\D/g, '');
+        const le = (l.email || '').trim().toLowerCase();
+        return (digits && lp && lp.slice(-10) === digits.slice(-10)) ||
+               (emailNorm && le && le === emailNorm);
+      });
+      if (existing) {
+        return {
+          result: `${existing.name} is already in the pipeline (matched by ${digits && existing.phone ? 'phone number' : 'email'}). Did not create a duplicate — using the existing lead.`,
+          action: { type: 'lead_updated', lead: existing },
+        };
+      }
+    }
+
     const { data: lead, error } = await supabase.from('leads').insert({
       user_id: userId, name, property: property || null,
       stage, motivation, last_contact: 0, days_in_pipeline: 0,
@@ -168,14 +202,35 @@ async function executeTool(
     const lead = findLead(input.lead_id, input.lead_name);
     if (!lead) return { result: `Could not find lead "${input.lead_name || input.lead_id}".` };
     if (!lead.phone) return { result: `${lead.name} has no phone number on file — add one before texting.` };
-    if (!input.message?.trim()) return { result: 'No message provided to send.' };
+    const message = (input.message || '').trim();
+    if (!message) return { result: 'No message provided.' };
 
-    const sent = await textLeadViaGhl(ghl, { name: lead.name, phone: lead.phone, email: lead.email }, input.message);
+    // HARD BLOCK: never send a client a message with unfilled placeholders.
+    const placeholders = findPlaceholders(message);
+    if (placeholders.length) {
+      return {
+        result: `BLOCKED — this message still has placeholders: ${placeholders.join(', ')}. ` +
+          `Replace them with the real values before sending. The sender is ${senderName}` +
+          `${senderCompany ? ` with ${senderCompany}` : ''}. Rewrite the draft cleanly and show it to the user again.`,
+      };
+    }
+
+    // DRAFT-FIRST: do not send until the user has explicitly approved the exact text.
+    if (!input.confirmed) {
+      return {
+        result: `DRAFT for ${lead.name} (${lead.phone}):\n\n"${message}"\n\n` +
+          `Show this to the user verbatim and ask them to approve it. Only call text_lead again ` +
+          `with confirmed=true after they clearly say to send it. Do NOT claim it was sent yet.`,
+        action: { type: 'text_draft', lead: { id: lead.id, name: lead.name, phone: lead.phone }, message },
+      };
+    }
+
+    const sent = await textLeadViaGhl(ghl, { name: lead.name, phone: lead.phone, email: lead.email }, message);
     if (!sent.ok) return { result: `Could not send text: ${sent.error}` };
 
     // Log the contact on the Pocket Pilot side too
     const timestamp = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    const note = `[${timestamp}] Texted via GHL: "${input.message.slice(0, 100)}${input.message.length > 100 ? '…' : ''}"`;
+    const note = `[${timestamp}] Texted via GHL: "${message.slice(0, 100)}${message.length > 100 ? '…' : ''}"`;
     const notes = lead.notes ? `${lead.notes}\n${note}` : note;
     const { data: updated } = await supabase.from('leads')
       .update({ last_contact: 0, notes }).eq('id', lead.id).select().single();
@@ -184,7 +239,7 @@ async function executeTool(
       notifySlack(slackWebhook, {
         type: 'contact_logged', leadName: lead.name, property: lead.property,
         stage: lead.stage, motivation: lead.motivation,
-        detail: `Texted via GHL: ${input.message.slice(0, 80)}`, agentName: copilotName,
+        detail: `Texted via GHL: ${message.slice(0, 80)}`, agentName: copilotName,
       });
     }
 
@@ -255,6 +310,8 @@ export async function POST(req: NextRequest) {
     (profile as any).ghl_connected && (profile as any).ghl_api_key && (profile as any).ghl_location_id
       ? { apiKey: (profile as any).ghl_api_key, locationId: (profile as any).ghl_location_id }
       : null;
+  const senderName    = (profile as any).user_name || '';
+  const senderCompany = (profile as any).company_name || null;
 
   const systemPrompt = isCoaching
     ? buildCoachingPrompt(profile as any)
@@ -300,7 +357,7 @@ export async function POST(req: NextRequest) {
       if (block.type !== 'tool_use') continue;
       const { result, action } = await executeTool(
         block.name, block.input as Record<string, any>,
-        user.id, supabase, currentLeads, slackWebhook, copilotName, ghl
+        user.id, supabase, currentLeads, slackWebhook, copilotName, ghl, senderName, senderCompany
       );
       if (action) {
         actions.push(action);

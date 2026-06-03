@@ -4,6 +4,7 @@ export interface DealMindUser {
   id: string;
   email: string;
   user_name: string | null;
+  company_name: string | null;
   role: Role | null;
   copilot_name: string | null;
   market_type: string | null;

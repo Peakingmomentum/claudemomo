@@ -32,6 +32,10 @@ CURRENT DATE & TIME: ${currentDateTime}
 USER: ${user.user_name || 'Unknown'} | ${user.role || 'agent'} | ${user.city || 'Unknown'} market
 CRM: ${user.crm || 'none'} | Stage: ${user.stage || 'unknown'}
 
+SIGNATURE (use these EXACT values in any outreach — never a placeholder):
+- Sender name: ${user.user_name || '(not set — ask the user their name and tell them to save it in Settings)'}
+- Company: ${(user as any).company_name || '(not set — ask the user their company and tell them to save it in Settings)'}
+
 MY LEADS (${active.length} active):
 ${active.map(l => `• [id:${l.id}] ${l.name} | ${l.property || 'n/a'} | ${l.stage} | Motivation: ${l.motivation} | Last contact: ${l.last_contact}d ago${l.deal_value ? ` | Value: $${l.deal_value.toLocaleString()}` : ''} | ${l.notes || ''}`).join('\n') || '(no leads yet)'}
 
@@ -55,7 +59,14 @@ RULES:
 9. You always know the current date and time — never ask the user for it. Use CURRENT DATE & TIME above for all scheduling.
 10. NEVER re-ask for information already given in this conversation. If a name, property, or detail was mentioned earlier — use it. Never say "What is their name?" if a name was already provided.
 11. ACT FIRST, ask follow-up questions after. If you have a name → add the lead, then ask for additional details. Never hold the tool call hostage waiting for perfect information.
-12. If you find yourself about to ask "Can you give me their name?" or "What's the lead's name?" — STOP. Scroll back through the conversation. The name is there. Use it.`;
+12. If you find yourself about to ask "Can you give me their name?" or "What's the lead's name?" — STOP. Scroll back through the conversation. The name is there. Use it.
+
+OUTREACH PROTOCOL (texting leads via GHL — follow EXACTLY):
+A. NEVER send a text without explicit approval. First call text_lead WITHOUT confirmed to produce a draft. Show the user the exact message and ask "Want me to send this?" Only after they clearly approve, call text_lead again with confirmed=true.
+B. NEVER write [Your Name], [Your Company], {{name}}, or any placeholder/bracket. Always fill in the real sender name and company from the SIGNATURE section above. The system will hard-block and refuse to send any message containing brackets or placeholders.
+C. If the SIGNATURE name or company is "(not set)", ask the user for it once, tell them to save it in Settings so it auto-fills next time, and use what they give you — never fall back to a placeholder.
+D. Before showing any draft, re-read it: if it contains a bracket or the words "your name"/"your company", fix it before showing the user. A client must never receive a templated, unfinished message.
+E. Adding a lead with a phone/email that already exists will NOT create a duplicate — the system reuses the existing lead. Don't try to add the same person twice.`;
 }
 
 export function buildCoachingPrompt(user: DealMindUser): string {
@@ -179,13 +190,14 @@ export const COPILOT_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'text_lead',
-    description: 'Send a text message (SMS) to a lead through the user\'s connected GoHighLevel account. Only works if the user has connected GHL. Use when the user asks you to text, message, or reach out to a lead by SMS. The lead must have a phone number.',
+    description: 'Draft or send an SMS to a lead through the user\'s connected GoHighLevel account. Requires GHL connected and a phone number on the lead. ALWAYS call this first WITHOUT confirmed (or confirmed=false) to produce a draft — the system returns the draft for the user to review. Only after the user explicitly approves the exact wording, call it again with confirmed=true to actually send. NEVER include placeholders like [Your Name] or [Your Company] — use the real sender name/company from the SIGNATURE section. The system will reject any message containing brackets or placeholders.',
     input_schema: {
       type: 'object' as const,
       properties: {
         lead_id:   { type: 'string', description: 'The lead id from the pipeline list above' },
         lead_name: { type: 'string', description: 'Name of the lead (used if id unknown)' },
-        message:   { type: 'string', description: 'The exact SMS text to send. Keep it under 320 characters and personal.' },
+        message:   { type: 'string', description: 'The exact SMS text. Under 320 chars, personal, fully filled in — no placeholders or brackets.' },
+        confirmed: { type: 'boolean', description: 'Leave false/omitted to draft. Set true ONLY after the user has explicitly approved this exact message.' },
       },
       required: ['message'],
     },
