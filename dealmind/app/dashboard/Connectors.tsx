@@ -12,8 +12,9 @@ interface Connector {
   category: 'communication' | 'data' | 'automation' | 'notes';
   logoInitial: string;
   logoColor: string;
-  type: 'oauth' | 'apikey' | 'webhook' | 'receive' | 'coming_soon';
+  type: 'oauth' | 'apikey' | 'webhook' | 'receive' | 'coming_soon' | 'ghl';
   field?: keyof DealMindUser;
+  secondField?: keyof DealMindUser;
   oauthUrl?: string;
   connectedField?: keyof DealMindUser;
   docsUrl?: string;
@@ -93,6 +94,15 @@ const CONNECTORS: Connector[] = [
     badge: 'Powered by GoHighLevel',
   },
   {
+    id: 'gohighlevel', name: 'GoHighLevel', category: 'automation',
+    description: 'Connect your own GHL location so your copilot can text leads and create call/text reminders directly in your CRM. Paste your Private Integration token and Location ID below.',
+    logoInitial: 'GHL', logoColor: '#2dd4bf',
+    type: 'ghl', field: 'ghl_api_key', secondField: 'ghl_location_id',
+    connectedField: 'ghl_connected',
+    docsUrl: 'https://help.gohighlevel.com/support/solutions/articles/155000003054-private-integrations',
+    badge: 'Agent can text & remind',
+  },
+  {
     id: 'slack', name: 'Slack', category: 'automation',
     description: 'Post lead updates to your team channel — new leads, stage changes, contact logs, and dead deals. Your whole team stays in sync without leaving Slack.',
     logoInitial: 'Sl', logoColor: '#4A154B',
@@ -163,6 +173,7 @@ export function Connectors({ profile, onProfileUpdate }: Props) {
   const supabase = createSupabaseBrowserClient();
   const [editing, setEditing]       = useState<string | null>(null);
   const [inputVal, setInputVal]     = useState('');
+  const [inputVal2, setInputVal2]   = useState('');
   const [saving, setSaving]         = useState(false);
   const [saved, setSaved]           = useState<string | null>(null);
   const [setupOpen, setSetupOpen]   = useState<string | null>(null);
@@ -187,6 +198,26 @@ export function Connectors({ profile, onProfileUpdate }: Props) {
 
   async function saveKey(connector: Connector) {
     if (!connector.field || !inputVal.trim()) return;
+    // GHL needs both an API key and a Location ID; mark connected when both present.
+    if (connector.type === 'ghl') {
+      if (!connector.secondField || !inputVal2.trim()) return;
+      setSaving(true);
+      const patch: Record<string, any> = {
+        [connector.field]: inputVal.trim(),
+        [connector.secondField]: inputVal2.trim(),
+        ghl_connected: true,
+      };
+      const { error } = await supabase.from('users').update(patch).eq('id', profile.id);
+      if (!error) {
+        onProfileUpdate(patch as any);
+        setSaved(connector.id);
+        setEditing(null);
+        setInputVal2('');
+        setTimeout(() => setSaved(null), 3000);
+      }
+      setSaving(false);
+      return;
+    }
     setSaving(true);
     const { error } = await supabase
       .from('users').update({ [connector.field]: inputVal.trim() }).eq('id', profile.id);
@@ -200,6 +231,12 @@ export function Connectors({ profile, onProfileUpdate }: Props) {
   }
 
   async function disconnect(connector: Connector) {
+    if (connector.type === 'ghl') {
+      const patch = { ghl_api_key: null, ghl_location_id: null, ghl_connected: false };
+      await supabase.from('users').update(patch).eq('id', profile.id);
+      onProfileUpdate(patch as any);
+      return;
+    }
     const field = connector.field || connector.connectedField;
     if (!field) return;
     const val = connector.type === 'oauth' ? false : null;
@@ -345,6 +382,37 @@ export function Connectors({ profile, onProfileUpdate }: Props) {
                       </div>
                     )}
 
+                    {/* GHL two-field input (API key + Location ID) */}
+                    {isEditing && c.type === 'ghl' && (
+                      <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <input
+                          autoFocus
+                          type="password"
+                          placeholder="GHL Private Integration token…"
+                          value={inputVal}
+                          onChange={e => setInputVal(e.target.value)}
+                          style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, fontFamily: 'inherit', background: 'var(--surface)' }}
+                        />
+                        <input
+                          type="text"
+                          placeholder="GHL Location ID…"
+                          value={inputVal2}
+                          onChange={e => setInputVal2(e.target.value)}
+                          style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, fontFamily: 'inherit', background: 'var(--surface)' }}
+                        />
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button className="btn" style={{ padding: '8px 16px', fontSize: 13 }}
+                            onClick={() => saveKey(c)} disabled={saving || !inputVal.trim() || !inputVal2.trim()}>
+                            {saving ? '…' : 'Connect'}
+                          </button>
+                          <button className="btn btn-ghost" style={{ padding: '8px 12px', fontSize: 13 }}
+                            onClick={() => { setEditing(null); setInputVal(''); setInputVal2(''); }}>
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {/* API key input */}
                     {isEditing && (c.type === 'apikey' || c.type === 'webhook') && (
                       <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
@@ -392,6 +460,17 @@ export function Connectors({ profile, onProfileUpdate }: Props) {
                         <a href={c.oauthUrl} className="btn" style={{ padding: '7px 14px', fontSize: 12, textDecoration: 'none' }}>
                           Connect
                         </a>
+                      ) : c.type === 'ghl' ? (
+                        <button
+                          className="btn"
+                          style={{ padding: '7px 14px', fontSize: 12 }}
+                          onClick={() => {
+                            setEditing(c.id);
+                            setInputVal((profile as any)[c.field!] || '');
+                            setInputVal2((profile as any)[c.secondField!] || '');
+                          }}>
+                          Connect
+                        </button>
                       ) : (
                         <button
                           className="btn btn-ghost"

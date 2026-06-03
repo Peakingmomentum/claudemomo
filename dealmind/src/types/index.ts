@@ -32,6 +32,9 @@ export interface DealMindUser {
   zapier_webhook_url: string | null;
   slack_webhook_url: string | null;
   warmfollow_api_key: string | null;
+  ghl_api_key: string | null;
+  ghl_location_id: string | null;
+  ghl_connected: boolean;
   daily_brief_cache: string | null;
   daily_brief_date: string | null;
   gcal_access_token: string | null;

@@ -177,6 +177,34 @@ export const COPILOT_TOOLS: Anthropic.Tool[] = [
       required: ['title', 'event_date'],
     },
   },
+  {
+    name: 'text_lead',
+    description: 'Send a text message (SMS) to a lead through the user\'s connected GoHighLevel account. Only works if the user has connected GHL. Use when the user asks you to text, message, or reach out to a lead by SMS. The lead must have a phone number.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        lead_id:   { type: 'string', description: 'The lead id from the pipeline list above' },
+        lead_name: { type: 'string', description: 'Name of the lead (used if id unknown)' },
+        message:   { type: 'string', description: 'The exact SMS text to send. Keep it under 320 characters and personal.' },
+      },
+      required: ['message'],
+    },
+  },
+  {
+    name: 'create_ghl_task',
+    description: 'Create a task or reminder in the user\'s connected GoHighLevel account, attached to a lead (e.g. "Call John tomorrow at 2pm"). Only works if the user has connected GHL. Use when the user wants a call/text reminder tracked in their CRM.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        lead_id:   { type: 'string', description: 'The lead id from the pipeline list above' },
+        lead_name: { type: 'string', description: 'Name of the lead (used if id unknown)' },
+        title:     { type: 'string', description: 'Short task title, e.g. "Call John about offer"' },
+        body:      { type: 'string', description: 'Optional task detail/notes' },
+        due_date:  { type: 'string', description: 'ISO 8601 datetime when the task is due, e.g. 2026-06-04T14:00:00' },
+      },
+      required: ['title', 'due_date'],
+    },
+  },
 ];
 
 export async function callClaude(

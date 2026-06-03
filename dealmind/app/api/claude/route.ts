@@ -3,6 +3,7 @@ import { buildSystemPrompt, buildCoachingPrompt, COPILOT_TOOLS, anthropic, enric
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { notifySlack } from '@/lib/slack';
 import { checkRateLimit, rateLimitResponse, LIMITS } from '@/lib/ratelimit';
+import { textLeadViaGhl, upsertGhlContact, createGhlTask, type GhlCreds } from '@/lib/ghl';
 
 export const runtime = 'nodejs';
 
@@ -15,7 +16,8 @@ async function executeTool(
   supabase: ReturnType<typeof createSupabaseServerClient>,
   leads: any[],
   slackWebhook: string | null,
-  copilotName: string
+  copilotName: string,
+  ghl: GhlCreds | null
 ): Promise<{ result: string; action?: Record<string, any> }> {
 
   // Helper: resolve lead by id or name
@@ -161,6 +163,57 @@ async function executeTool(
     };
   }
 
+  if (toolName === 'text_lead') {
+    if (!ghl) return { result: 'GoHighLevel is not connected. Ask the user to connect GHL in Connectors first.' };
+    const lead = findLead(input.lead_id, input.lead_name);
+    if (!lead) return { result: `Could not find lead "${input.lead_name || input.lead_id}".` };
+    if (!lead.phone) return { result: `${lead.name} has no phone number on file — add one before texting.` };
+    if (!input.message?.trim()) return { result: 'No message provided to send.' };
+
+    const sent = await textLeadViaGhl(ghl, { name: lead.name, phone: lead.phone, email: lead.email }, input.message);
+    if (!sent.ok) return { result: `Could not send text: ${sent.error}` };
+
+    // Log the contact on the Pocket Pilot side too
+    const timestamp = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const note = `[${timestamp}] Texted via GHL: "${input.message.slice(0, 100)}${input.message.length > 100 ? '…' : ''}"`;
+    const notes = lead.notes ? `${lead.notes}\n${note}` : note;
+    const { data: updated } = await supabase.from('leads')
+      .update({ last_contact: 0, notes }).eq('id', lead.id).select().single();
+
+    if (slackWebhook) {
+      notifySlack(slackWebhook, {
+        type: 'contact_logged', leadName: lead.name, property: lead.property,
+        stage: lead.stage, motivation: lead.motivation,
+        detail: `Texted via GHL: ${input.message.slice(0, 80)}`, agentName: copilotName,
+      });
+    }
+
+    return {
+      result: `Text sent to ${lead.name} via GoHighLevel. Contact logged.`,
+      action: updated ? { type: 'lead_updated', lead: updated } : undefined,
+    };
+  }
+
+  if (toolName === 'create_ghl_task') {
+    if (!ghl) return { result: 'GoHighLevel is not connected. Ask the user to connect GHL in Connectors first.' };
+    const lead = findLead(input.lead_id, input.lead_name);
+    if (!lead) return { result: `Could not find lead "${input.lead_name || input.lead_id}".` };
+    if (!input.title?.trim() || !input.due_date) return { result: 'Task needs a title and a due date.' };
+
+    // Ensure the lead exists as a GHL contact, then attach the task
+    const upsert = await upsertGhlContact(ghl, { name: lead.name, phone: lead.phone, email: lead.email });
+    if (!upsert.ok) return { result: `Could not create task: ${upsert.error}` };
+
+    const task = await createGhlTask(ghl, upsert.contactId, {
+      title: input.title, body: input.body, dueDate: input.due_date,
+    });
+    if (!task.ok) return { result: `Could not create task: ${task.error}` };
+
+    return {
+      result: `Task "${input.title}" created in GoHighLevel for ${lead.name}, due ${new Date(input.due_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.`,
+    };
+  }
+
   return { result: `Unknown tool: ${toolName}` };
 }
 
@@ -198,6 +251,10 @@ export async function POST(req: NextRequest) {
 
   const slackWebhook = (profile as any).slack_webhook_url || null;
   const copilotName  = (profile as any).copilot_name || 'Pocket Pilot';
+  const ghl: GhlCreds | null =
+    (profile as any).ghl_connected && (profile as any).ghl_api_key && (profile as any).ghl_location_id
+      ? { apiKey: (profile as any).ghl_api_key, locationId: (profile as any).ghl_location_id }
+      : null;
 
   const systemPrompt = isCoaching
     ? buildCoachingPrompt(profile as any)
@@ -243,7 +300,7 @@ export async function POST(req: NextRequest) {
       if (block.type !== 'tool_use') continue;
       const { result, action } = await executeTool(
         block.name, block.input as Record<string, any>,
-        user.id, supabase, currentLeads, slackWebhook, copilotName
+        user.id, supabase, currentLeads, slackWebhook, copilotName, ghl
       );
       if (action) {
         actions.push(action);
