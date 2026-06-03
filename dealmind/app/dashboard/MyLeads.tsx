@@ -126,6 +126,17 @@ export function MyLeads({ profile, leads, setLeads, calendar, focusLeadId, onFoc
   const supabase = createSupabaseBrowserClient();
   const isMobile = useMobile();
   const [sortBy, setSortBy] = useState<SortMode>('score');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  function handleSort(mode: SortMode) {
+    if (mode === sortBy) {
+      setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(mode);
+      // Sensible default per mode: score = hottest first, activity = most recent first, alpha = A–Z
+      setSortDir(mode === 'score' ? 'desc' : 'asc');
+    }
+  }
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState<Partial<Lead>>({ name: '', property: '', stage: 'New Lead', motivation: 'Unknown' });
   const importRef = useRef<HTMLInputElement | null>(null);
@@ -229,9 +240,11 @@ export function MyLeads({ profile, leads, setLeads, calendar, focusLeadId, onFoc
   const pipelineValue = active.reduce((sum, l) => sum + (l.deal_value || 0), 0);
 
   const sorted = [...active].sort((a, b) => {
-    if (sortBy === 'alpha')    return a.name.localeCompare(b.name);
-    if (sortBy === 'activity') return a.last_contact - b.last_contact;
-    return scoreLead(b) - scoreLead(a); // score descending
+    let cmp: number;
+    if (sortBy === 'alpha')         cmp = a.name.localeCompare(b.name);
+    else if (sortBy === 'activity') cmp = a.last_contact - b.last_contact;
+    else                            cmp = scoreLead(a) - scoreLead(b); // ascending base
+    return sortDir === 'asc' ? cmp : -cmp;
   });
 
   return (
@@ -268,18 +281,26 @@ export function MyLeads({ profile, leads, setLeads, calendar, focusLeadId, onFoc
             ['score',    'Lead Score',      'spark'],
             ['activity', 'Latest Activity', 'clock'],
             ['alpha',    'A – Z',           'pipeline'],
-          ] as Array<[SortMode, string, any]>).map(([mode, label, icon]) => (
-            <button key={mode} onClick={() => setSortBy(mode)} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 5,
-              padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-              border: `1px solid ${sortBy === mode ? 'var(--accent)' : 'var(--border)'}`,
-              background: sortBy === mode ? 'var(--accent)' : 'transparent',
-              color: sortBy === mode ? '#fff' : 'var(--muted)',
-              cursor: 'pointer',
-            }}>
-              <Icon name={icon} size={12} />{label}
-            </button>
-          ))}
+          ] as Array<[SortMode, string, any]>).map(([mode, label, icon]) => {
+            const isActive = sortBy === mode;
+            // Label reflects direction so the toggle is obvious
+            const dirLabel = mode === 'alpha'
+              ? (isActive && sortDir === 'desc' ? 'Z – A' : 'A – Z')
+              : label;
+            const caret = isActive ? (sortDir === 'asc' ? ' ↑' : ' ↓') : '';
+            return (
+              <button key={mode} onClick={() => handleSort(mode)} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                border: `1px solid ${isActive ? 'var(--accent)' : 'var(--border)'}`,
+                background: isActive ? 'var(--accent)' : 'transparent',
+                color: isActive ? '#fff' : 'var(--muted)',
+                cursor: 'pointer',
+              }}>
+                <Icon name={icon} size={12} />{dirLabel}{caret}
+              </button>
+            );
+          })}
         </div>
       )}
 

@@ -144,32 +144,57 @@ export function CoachingTab({ profile }: Props) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 180px)' }}>
 
-      {/* ── Prompt library toggle ── */}
-      <div style={{ marginBottom: 10 }}>
-        <button
-          onClick={() => setPromptsOpen(o => !o)}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            background: 'var(--card)', border: '1px solid var(--border)',
-            borderRadius: 10, padding: '8px 14px', cursor: 'pointer',
-            color: 'var(--text)', fontWeight: 600, fontSize: 13,
-          }}
-        >
-          <Icon name="bulb" size={15} />
-          {promptsOpen ? 'Hide prompt library' : 'Browse coaching prompts'}
-          <span style={{ marginLeft: 2, fontSize: 11, color: 'var(--muted)' }}>
-            {promptsOpen ? '▲' : '▼'}
-          </span>
-        </button>
+      {/* ── Message scroller ── */}
+      <div ref={scrollerRef} style={{
+        flex: 1, overflowY: 'auto', padding: '4px 8px',
+        display: 'flex', flexDirection: 'column', gap: 16,
+      }}>
+        {!loadingHist && messages.length === 0 && (
+          <div style={{ textAlign: 'center', color: 'var(--muted)', marginTop: 32 }}>
+            <div style={{
+              width: 60, height: 60, borderRadius: '50%', margin: '0 auto 14px',
+              background: 'linear-gradient(135deg, #4a90d9, #0f4c81)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Icon name="bulb" size={26} />
+            </div>
+            <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', margin: 0 }}>
+              Your real estate coach is ready.
+            </p>
+            <p style={{ fontSize: 13, marginTop: 6 }}>
+              Pick a prompt below or ask anything — scripts, strategy, lead gen, growth.
+            </p>
+          </div>
+        )}
+        {messages.map(m => (
+          <div key={m.id} style={{
+            alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
+            maxWidth: '82%',
+            padding: '12px 16px',
+            borderRadius: 16,
+            background: m.role === 'user' ? 'var(--accent)' : 'var(--card)',
+            border: m.role === 'assistant' ? '1px solid var(--border)' : 'none',
+            color: m.role === 'user' ? 'white' : 'var(--text)',
+            whiteSpace: 'pre-wrap',
+            lineHeight: 1.6,
+          }}>
+            {m.content}
+          </div>
+        ))}
+        {sending && (
+          <div style={{ alignSelf: 'flex-start', color: 'var(--muted)', fontStyle: 'italic', fontSize: 13 }}>
+            Coach is thinking…
+          </div>
+        )}
       </div>
 
-      {/* ── Prompt library grid ── */}
+      {/* ── Prompt library (below chat, above input — no seam) ── */}
       {promptsOpen && (
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-          gap: 10, marginBottom: 14,
-          maxHeight: 300, overflowY: 'auto',
+          gap: 10, marginTop: 12, marginBottom: 4,
+          maxHeight: 260, overflowY: 'auto',
           paddingRight: 4,
         }}>
           {PROMPT_CATEGORIES.map(cat => (
@@ -219,48 +244,23 @@ export function CoachingTab({ profile }: Props) {
         </div>
       )}
 
-      {/* ── Message scroller ── */}
-      <div ref={scrollerRef} style={{
-        flex: 1, overflowY: 'auto', padding: '4px 8px',
-        display: 'flex', flexDirection: 'column', gap: 16,
-      }}>
-        {!loadingHist && messages.length === 0 && (
-          <div style={{ textAlign: 'center', color: 'var(--muted)', marginTop: 32 }}>
-            <div style={{
-              width: 60, height: 60, borderRadius: '50%', margin: '0 auto 14px',
-              background: 'linear-gradient(135deg, #4a90d9, #0f4c81)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <Icon name="bulb" size={26} />
-            </div>
-            <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', margin: 0 }}>
-              Your real estate coach is ready.
-            </p>
-            <p style={{ fontSize: 13, marginTop: 6 }}>
-              Pick a prompt above or ask anything — scripts, strategy, lead gen, growth.
-            </p>
-          </div>
-        )}
-        {messages.map(m => (
-          <div key={m.id} style={{
-            alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
-            maxWidth: '82%',
-            padding: '12px 16px',
-            borderRadius: 16,
-            background: m.role === 'user' ? 'var(--accent)' : 'var(--card)',
-            border: m.role === 'assistant' ? '1px solid var(--border)' : 'none',
-            color: m.role === 'user' ? 'white' : 'var(--text)',
-            whiteSpace: 'pre-wrap',
-            lineHeight: 1.6,
-          }}>
-            {m.content}
-          </div>
-        ))}
-        {sending && (
-          <div style={{ alignSelf: 'flex-start', color: 'var(--muted)', fontStyle: 'italic', fontSize: 13 }}>
-            Coach is thinking…
-          </div>
-        )}
+      {/* ── Prompt library toggle (sits right above the input) ── */}
+      <div style={{ marginTop: 10 }}>
+        <button
+          onClick={() => setPromptsOpen(o => !o)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: 'var(--card)', border: '1px solid var(--border)',
+            borderRadius: 10, padding: '8px 14px', cursor: 'pointer',
+            color: 'var(--text)', fontWeight: 600, fontSize: 13,
+          }}
+        >
+          <Icon name="bulb" size={15} />
+          {promptsOpen ? 'Hide prompt library' : 'Browse coaching prompts'}
+          <span style={{ marginLeft: 2, fontSize: 11, color: 'var(--muted)' }}>
+            {promptsOpen ? '▼' : '▲'}
+          </span>
+        </button>
       </div>
 
       {/* ── Input row ── */}

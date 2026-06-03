@@ -61,19 +61,6 @@ const CONNECTORS: Connector[] = [
     type: 'apikey', field: 'batchleads_api_key',
     docsUrl: 'https://batchleads.io/api',
   },
-  {
-    id: 'reiskip', name: 'REISkip', category: 'data',
-    description: 'Skip trace leads and enrich phone/email from your pipeline.',
-    logoInitial: 'RS', logoColor: '#ED8936',
-    type: 'apikey', field: 'reiskip_api_key',
-    docsUrl: 'https://reiskip.com',
-  },
-  {
-    id: 'attom', name: 'ATTOM Data', category: 'data',
-    description: 'Property data, AVM, and neighborhood analytics.',
-    logoInitial: 'AT', logoColor: '#667EEA',
-    type: 'coming_soon',
-  },
 
   // Automation
   {
@@ -116,18 +103,6 @@ const CONNECTORS: Connector[] = [
     logoInitial: 'Z', logoColor: '#FF4A00',
     type: 'webhook', field: 'zapier_webhook_url',
     docsUrl: 'https://zapier.com/apps/webhooks',
-  },
-  {
-    id: 'follow_up_boss', name: 'Follow Up Boss', category: 'automation',
-    description: 'Push deals and contacts to your FUB pipeline.',
-    logoInitial: 'FU', logoColor: '#4a90d9',
-    type: 'coming_soon',
-  },
-  {
-    id: 'podio', name: 'Podio CRM', category: 'automation',
-    description: 'Sync leads and deal stages with Podio workspaces.',
-    logoInitial: 'PO', logoColor: '#4A5568',
-    type: 'coming_soon',
   },
   {
     id: 'hotleads', name: 'Hot Leads Generator', category: 'automation',
