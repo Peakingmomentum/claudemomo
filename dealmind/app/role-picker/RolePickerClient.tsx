@@ -13,7 +13,7 @@ import {
 const ROLES: UserRole[] = [
   'wholesaler',
   'realtor',
-  'storage_investor',
+  'storage_unit',
   'commercial_re',
   'industrial',
 ];
@@ -22,7 +22,7 @@ const ROLES: UserRole[] = [
 const ROLE_BULLETS: Record<UserRole, string[]> = {
   wholesaler:       ['Lead → Analyzed → Under Contract → Assigned pipeline', 'ARV, MAO & assignment fee calculators', 'Wholesaler scripts & offer negotiation prompts'],
   realtor:          ['Prospect → Showing → Offer → Under Contract → Closed pipeline', 'Commission split, buyer net & seller net calculators', 'Listing descriptions & buyer outreach scripts'],
-  storage_investor: ['Identified → Analyzed → LOI → Due Diligence → Closed pipeline', 'Occupancy rate, unit mix revenue & cap rate calculators', 'Storage market analysis & LOI drafting prompts'],
+  storage_unit: ['Identified → Analyzed → LOI → Due Diligence → Closed pipeline', 'Occupancy rate, unit mix revenue & cap rate calculators', 'Storage market analysis & LOI drafting prompts'],
   commercial_re:    ['Identified → Underwriting → LOI → Due Diligence → Closed pipeline', 'Cap rate, NOI, DSCR & cash-on-cash return calculators', 'Commercial deal analysis & underwriting prompts'],
   industrial:       ['Identified → Underwriting → LOI → Due Diligence → Closed pipeline', 'Warehouse SF pricing, lease rate analysis & industrial cap rate calculators', 'Industrial market & lease negotiation prompts'],
 };

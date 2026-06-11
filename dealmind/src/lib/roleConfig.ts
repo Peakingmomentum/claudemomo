@@ -4,7 +4,7 @@
 export type UserRole =
   | 'wholesaler'
   | 'realtor'
-  | 'storage_investor'
+  | 'storage_unit'
   | 'commercial_re'
   | 'industrial';
 
@@ -13,7 +13,7 @@ export type UserRole =
 export const ROLE_STAGES: Record<UserRole, string[]> = {
   wholesaler:       ['Lead', 'Analyzed', 'Under Contract', 'Assigned', 'Closed', 'Dead'],
   realtor:          ['Prospect', 'Showing', 'Offer', 'Under Contract', 'Closed', 'Dead'],
-  storage_investor: ['Identified', 'Analyzed', 'LOI', 'Due Diligence', 'Closed', 'Dead'],
+  storage_unit: ['Identified', 'Analyzed', 'LOI', 'Due Diligence', 'Closed', 'Dead'],
   commercial_re:    ['Identified', 'Underwriting', 'LOI', 'Due Diligence', 'Closed', 'Dead'],
   industrial:       ['Identified', 'Underwriting', 'LOI', 'Due Diligence', 'Closed', 'Dead'],
 };
@@ -30,7 +30,7 @@ export function getStages(role?: UserRole | null): string[] {
 export const ROLE_LABELS: Record<UserRole, string> = {
   wholesaler:       'Wholesaler',
   realtor:          'Realtor / Agent',
-  storage_investor: 'Storage Unit Investor',
+  storage_unit: 'Storage Unit Investor',
   commercial_re:    'Commercial Real Estate',
   industrial:       'Industrial Real Estate',
 };
@@ -38,7 +38,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
 export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
   wholesaler:       'Find distressed properties, put them under contract, and assign to buyers.',
   realtor:          'Represent buyers and sellers. Earn commission on closed transactions.',
-  storage_investor: 'Acquire, operate, and scale self-storage facilities.',
+  storage_unit: 'Acquire, operate, and scale self-storage facilities.',
   commercial_re:    'Office, retail, and mixed-use commercial property acquisitions.',
   industrial:       'Warehouses, distribution centers, flex space, and industrial parks.',
 };
@@ -46,7 +46,7 @@ export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
 export const ROLE_ICONS: Record<UserRole, string> = {
   wholesaler:       '🏠',
   realtor:          '🤝',
-  storage_investor: '🏭',
+  storage_unit: '🏭',
   commercial_re:    '🏢',
   industrial:       '⚙️',
 };
@@ -201,7 +201,7 @@ export const CALCULATORS: Record<UserRole, Calculator[]> = {
     },
   ],
 
-  storage_investor: [
+  storage_unit: [
     {
       id: 'occupancy',
       label: 'Occupancy Rate Calculator',
@@ -521,7 +521,7 @@ export const ROLE_PROMPT_CATEGORIES: Record<UserRole, PromptCategory[]> = {
     },
   ],
 
-  storage_investor: [
+  storage_unit: [
     {
       label: 'Finding Deals',
       icon: 'target',
@@ -752,7 +752,7 @@ Key metrics they care about: GCI (Gross Commission Income), conversion rate, day
 Common tools: MLS, ShowingTime, DocuSign, Dotloop, Follow Up Boss, kvCORE.
 AI should help with: listing descriptions, buyer outreach scripts, negotiation strategies, market analysis, sphere of influence marketing.`,
 
-  storage_investor: `USER ROLE: Self-Storage Investor
+  storage_unit: `USER ROLE: Self-Storage Investor
 Their business model: Acquire, operate, and/or develop self-storage facilities. May be value-add turnaround or stabilized income plays. Pipeline stages are: Identified → Analyzed → LOI → Due Diligence → Closed.
 Key metrics they care about: occupancy rate, unit mix, NOI, cap rate, DSCR, revenue per SF.
 Common tools: SpareFoot, Storedge, Easy Storage Solutions, Yardi Breeze.

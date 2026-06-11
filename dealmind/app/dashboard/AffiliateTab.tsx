@@ -44,13 +44,23 @@ const STATUS_LABELS: Record<string, string> = {
 export function AffiliateTab({ profile }: Props) {
   const [data, setData]     = useState<AffiliateStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState('');
   const [copied, setCopied]   = useState(false);
 
   useEffect(() => {
     fetch('/api/affiliate')
       .then(r => r.json())
-      .then(d => { setData(d); setLoading(false); })
-      .catch(() => setLoading(false));
+      .then(d => {
+        // Only accept a well-formed payload — an error shape (e.g. { error })
+        // must never reach render, or field access below would crash the page.
+        if (d && d.stats && Array.isArray(d.referrals)) {
+          setData(d);
+        } else {
+          setError(d?.error || 'Could not load affiliate data. Please try again.');
+        }
+        setLoading(false);
+      })
+      .catch(() => { setError('Could not load affiliate data. Please try again.'); setLoading(false); });
   }, []);
 
   const baseUrl = typeof window !== 'undefined'
@@ -76,6 +86,15 @@ export function AffiliateTab({ profile }: Props) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, color: 'var(--muted)' }}>
         Loading affiliate data…
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, height: 200, color: 'var(--muted)', textAlign: 'center' }}>
+        <div style={{ fontSize: 28 }}>⚠️</div>
+        <div style={{ fontWeight: 600 }}>{error || 'Could not load affiliate data.'}</div>
       </div>
     );
   }

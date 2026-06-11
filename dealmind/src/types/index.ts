@@ -1,7 +1,7 @@
 export type Role = 'investor' | 'agent' | 'both' | 'brokerage';
 
 // 5-niche role picker (added in 008 migration)
-export type UserRole = 'wholesaler' | 'realtor' | 'storage_investor' | 'commercial_re' | 'industrial';
+export type UserRole = 'wholesaler' | 'realtor' | 'storage_unit' | 'commercial_re' | 'industrial';
 
 export interface DealMindUser {
   id: string;
