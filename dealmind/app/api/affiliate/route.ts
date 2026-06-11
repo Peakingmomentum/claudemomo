@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseServerClient, createSupabaseAdminClient } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';
 
@@ -59,8 +59,12 @@ export async function POST(req: NextRequest) {
   const { referralCode } = await req.json() as { referralCode: string };
   if (!referralCode) return NextResponse.json({ error: 'no code' }, { status: 400 });
 
+  // Privileged reads/writes: cross-user lookups and the referrals insert are
+  // service_role-only under RLS, so use the admin client (not the user session).
+  const admin = createSupabaseAdminClient();
+
   // Look up referrer
-  const { data: referrer } = await supabase
+  const { data: referrer } = await admin
     .from('users')
     .select('id')
     .eq('referral_code', referralCode.toUpperCase())
@@ -71,7 +75,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Check if already attributed
-  const { data: existing } = await supabase
+  const { data: existing } = await admin
     .from('referrals')
     .select('id')
     .eq('referred_user_id', user.id)
@@ -82,7 +86,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Insert referral record
-  await supabase.from('referrals').insert({
+  const { error: insertError } = await admin.from('referrals').insert({
     referrer_id:      referrer.id,
     referred_user_id: user.id,
     referral_code:    referralCode.toUpperCase(),
@@ -90,8 +94,12 @@ export async function POST(req: NextRequest) {
     commission_pct:   30,
   });
 
+  if (insertError) {
+    return NextResponse.json({ ok: false, reason: insertError.message }, { status: 400 });
+  }
+
   // Tag the referred user
-  await supabase.from('users').update({ referred_by: referrer.id }).eq('id', user.id);
+  await admin.from('users').update({ referred_by: referrer.id }).eq('id', user.id);
 
   return NextResponse.json({ ok: true });
 }
