@@ -2,7 +2,9 @@
 
 import { useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
-import type { DealMindUser } from '@/types';
+import type { DealMindUser, UserRole } from '@/types';
+import { ROLE_LABELS, ROLE_DESCRIPTIONS, ROLE_ICONS } from '@/lib/roleConfig';
+import { WhiteLabelSettings } from './WhiteLabelSettings';
 
 interface Props { profile: DealMindUser; }
 
@@ -18,6 +20,23 @@ export function Settings({ profile }: Props) {
   const [company, setCompany]     = useState(profile.company_name || '');
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileMsg, setProfileMsg]       = useState<string | null>(null);
+
+  // Role change
+  const [selectedRole, setSelectedRole] = useState<UserRole>(profile.user_role ?? 'wholesaler');
+  const [savingRole, setSavingRole]     = useState(false);
+  const [roleMsg, setRoleMsg]           = useState<string | null>(null);
+
+  async function saveRole(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingRole(true);
+    setRoleMsg(null);
+    const { error } = await supabase.from('users')
+      .update({ user_role: selectedRole, user_role_set_at: new Date().toISOString() })
+      .eq('id', profile.id);
+    setRoleMsg(error ? `Error: ${error.message}` : 'Role updated ✓ — reload the page for full effect.');
+    setSavingRole(false);
+    setTimeout(() => setRoleMsg(null), 5000);
+  }
 
   async function saveProfile(e: React.FormEvent) {
     e.preventDefault();
@@ -157,6 +176,46 @@ export function Settings({ profile }: Props) {
           </div>
         )}
       </div>
+
+      {/* Role picker — change your niche */}
+      <div className="card">
+        <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--muted)', marginBottom: 4 }}>
+          Your Role / Niche
+        </div>
+        <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>
+          Changing your role updates your pipeline stages, calculators, and AI coaching prompts.
+        </p>
+        <form onSubmit={saveRole} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
+            {(Object.keys(ROLE_LABELS) as UserRole[]).map(r => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => setSelectedRole(r)}
+                style={{
+                  padding: '10px 14px', borderRadius: 10, textAlign: 'left', cursor: 'pointer',
+                  border: `2px solid ${selectedRole === r ? 'var(--accent)' : 'var(--border)'}`,
+                  background: selectedRole === r ? 'rgba(74,144,217,0.08)' : 'var(--surface)',
+                  transition: 'all 0.15s',
+                }}
+              >
+                <div style={{ fontSize: 20, marginBottom: 4 }}>{ROLE_ICONS[r]}</div>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>{ROLE_LABELS[r]}</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{ROLE_DESCRIPTIONS[r]}</div>
+              </button>
+            ))}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
+            <button className="btn" type="submit" disabled={savingRole} style={{ alignSelf: 'flex-start' }}>
+              {savingRole ? 'Saving…' : 'Save Role'}
+            </button>
+            {roleMsg && <span style={{ fontSize: 13, color: roleMsg.startsWith('Error') ? 'var(--danger)' : '#10b981' }}>{roleMsg}</span>}
+          </div>
+        </form>
+      </div>
+
+      {/* White-Label / Brand Settings */}
+      <WhiteLabelSettings profile={profile} />
 
       {/* Legal & policies */}
       <div className="card">

@@ -33,14 +33,13 @@ export function DailyIntel({ profile, leads, calendar }: Props) {
   const [checked, setChecked]   = useState<Set<number>>(new Set());
   const [refresh, setRefresh]   = useState(false);
   const [eodOpen, setEodOpen]   = useState(false);
-  const [activeView, setActiveView] = useState<'brief' | 'tasks'>('brief');
   const isMobile = useMobile();
 
   const active  = leads.filter(l => !l.is_dead);
   const urgent  = active.filter(l => l.last_contact >= 7);
   const hot     = active.filter(l => l.motivation === 'High');
   const today   = new Date().toDateString();
-  const todayEvents = calendar.filter(c => new Date(c.event_date).toDateString() === today);
+  const todayEvents = calendar.filter(c => !c.completed_at && new Date(c.event_date).toDateString() === today);
 
   useEffect(() => {
     setLoading(true);
@@ -56,40 +55,33 @@ export function DailyIntel({ profile, leads, calendar }: Props) {
       .finally(() => { setLoading(false); setRefresh(false); });
   }, [refresh]);
 
+  const doneStorageKey = `di-done-${profile.id}-${new Date().toISOString().split('T')[0]}`;
+
+  // Restore completed to-dos for today once the (day-stable) brief loads,
+  // so a page refresh doesn't resurrect tasks already checked off.
+  useEffect(() => {
+    if (!brief) return;
+    try {
+      const saved: string[] = JSON.parse(localStorage.getItem(doneStorageKey) || '[]');
+      const idx = new Set<number>();
+      brief.todos.forEach((t, i) => { if (saved.includes(t.task)) idx.add(i); });
+      setChecked(idx);
+    } catch { /* ignore unreadable storage */ }
+  }, [brief]);
+
   function toggleCheck(i: number) {
-    setChecked(s => { const n = new Set(s); n.has(i) ? n.delete(i) : n.add(i); return n; });
+    setChecked(s => {
+      const n = new Set(s); n.has(i) ? n.delete(i) : n.add(i);
+      if (brief) {
+        const tasks = brief.todos.filter((_, j) => n.has(j)).map(t => t.task);
+        try { localStorage.setItem(doneStorageKey, JSON.stringify(tasks)); } catch { /* ignore */ }
+      }
+      return n;
+    });
   }
-
-  const upcomingTasks = calendar
-    .filter(e => new Date(e.event_date) >= new Date())
-    .sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime());
-
-  const leadMap = Object.fromEntries(leads.map(l => [l.id, l]));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-      {/* View toggle */}
-      <div style={{ display: 'flex', gap: 6 }}>
-        {(['brief', 'tasks'] as const).map(v => (
-          <button key={v} onClick={() => setActiveView(v)} style={{
-            padding: '8px 18px', borderRadius: 8, border: `1px solid ${activeView === v ? 'var(--accent)' : 'var(--border)'}`,
-            background: activeView === v ? 'var(--accent)' : 'transparent',
-            color: activeView === v ? '#fff' : 'var(--muted)',
-            fontWeight: 600, fontSize: 13, cursor: 'pointer',
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-          }}>
-            <Icon name={v === 'brief' ? 'spark' : 'clock'} size={13} />
-            {v === 'brief' ? 'Daily Brief' : `Tasks${upcomingTasks.length > 0 ? ` (${upcomingTasks.length})` : ''}`}
-          </button>
-        ))}
-      </div>
-
-      {activeView === 'tasks' && (
-        <TaskBoard tasks={upcomingTasks} leadMap={leadMap} isMobile={isMobile} />
-      )}
-
-      {activeView === 'brief' && <>
 
       {/* Stats row */}
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 12 }}>
@@ -116,10 +108,10 @@ export function DailyIntel({ profile, leads, calendar }: Props) {
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 14, fontWeight: 800, color: '#fff'
             }}>
-              {(profile.copilot_name || 'A')[0]}
+              {(profile.copilot_name || 'Pilot')[0]}
             </div>
             <div>
-              <div style={{ fontWeight: 700, fontSize: 14 }}>{profile.copilot_name || 'Ace'}'s Daily Brief</div>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>{profile.copilot_name || 'Pilot'}'s Daily Brief</div>
               <div style={{ fontSize: 11, color: 'var(--muted)' }}>
                 {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
               </div>
@@ -136,7 +128,7 @@ export function DailyIntel({ profile, leads, calendar }: Props) {
         {loading ? (
           <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--muted)' }}>
             <div style={{ fontSize: 13, marginBottom: 8 }}>
-              {profile.copilot_name || 'Ace'} is reviewing your pipeline…
+              {profile.copilot_name || 'Pilot'} is reviewing your pipeline…
             </div>
             <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
               {[0,1,2].map(i => (
@@ -237,7 +229,7 @@ export function DailyIntel({ profile, leads, calendar }: Props) {
                 border: '1px solid rgba(74,144,217,.15)'
               }}>
                 <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--accent-label)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <Icon name="bulb" size={13} color="var(--accent-label)" />{profile.copilot_name || 'Ace'}'s Insight
+                  <Icon name="bulb" size={13} color="var(--accent-label)" />{profile.copilot_name || 'Pilot'}'s Insight
                 </div>
                 <div style={{ fontSize: 13, color: 'var(--text)' }}>{brief.insight}</div>
               </div>
@@ -279,90 +271,6 @@ export function DailyIntel({ profile, leads, calendar }: Props) {
         )}
       </div>
 
-      </> /* end activeView === 'brief' */}
-    </div>
-  );
-}
-
-// ─── Task Board ───────────────────────────────────────────────────────────────
-
-function TaskBoard({
-  tasks, leadMap, isMobile
-}: {
-  tasks: CalendarEvent[];
-  leadMap: Record<string, Lead>;
-  isMobile: boolean;
-}) {
-  const now = new Date();
-  const todayStr = now.toDateString();
-  const tomorrowStr = new Date(Date.now() + 86400000).toDateString();
-
-  function bucket(evt: CalendarEvent) {
-    const d = new Date(evt.event_date).toDateString();
-    if (d === todayStr)     return 'Today';
-    if (d === tomorrowStr)  return 'Tomorrow';
-    return new Date(evt.event_date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
-  }
-
-  const grouped: Record<string, CalendarEvent[]> = {};
-  for (const t of tasks) {
-    const b = bucket(t);
-    (grouped[b] = grouped[b] || []).push(t);
-  }
-
-  const TYPE_COLOR: Record<string, string> = {
-    follow_up: '#4a90d9', appointment: '#10b981', deadline: '#ef4444',
-  };
-
-  if (tasks.length === 0) {
-    return (
-      <div className="card" style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px 0' }}>
-        <Icon name="clock" size={24} color="var(--muted)" />
-        <div style={{ marginTop: 10, fontSize: 13 }}>No upcoming tasks. Add follow-ups via the Copilot or in a lead card.</div>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {Object.entries(grouped).map(([day, evts]) => (
-        <div key={day}>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--muted)', marginBottom: 8 }}>
-            {day}
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {evts.map(evt => {
-              const lead = evt.lead_id ? leadMap[evt.lead_id] : null;
-              const color = TYPE_COLOR[evt.event_type || 'follow_up'] || '#4a90d9';
-              const isToday = new Date(evt.event_date).toDateString() === todayStr;
-              return (
-                <div key={evt.id} style={{
-                  display: 'flex', alignItems: 'center', gap: 14,
-                  padding: '12px 16px', borderRadius: 10,
-                  background: isToday ? `${color}08` : 'var(--surface)',
-                  border: `1px solid ${isToday ? color + '30' : 'var(--border)'}`,
-                }}>
-                  {/* Color dot */}
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: 14 }}>{evt.title}</div>
-                    {lead && (
-                      <div style={{ fontSize: 12, color: 'var(--accent)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <Icon name="user" size={11} color="var(--accent)" />{lead.name}
-                        {lead.motivation === 'High' && <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 999, background: 'rgba(239,68,68,.12)', color: '#ef4444', marginLeft: 4 }}>Hot</span>}
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0, textAlign: 'right' }}>
-                    <div>{new Date(evt.event_date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</div>
-                    <div style={{ fontSize: 10, marginTop: 1, padding: '1px 6px', borderRadius: 999, background: `${color}15`, color }}>{evt.event_type || 'follow_up'}</div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
     </div>
   );
 }
@@ -383,9 +291,9 @@ function EodReport({
   const goingCold    = active.filter(l => l.last_contact >= 7);
   const hot          = active.filter(l => l.motivation === 'High');
   const tomorrow     = new Date(Date.now() + 86400000).toDateString();
-  const tomorrowEvts = calendar.filter(c => new Date(c.event_date).toDateString() === tomorrow);
+  const tomorrowEvts = calendar.filter(c => !c.completed_at && new Date(c.event_date).toDateString() === tomorrow);
   const topTodos     = (brief.todos || []).filter(t => t.priority === 'high').slice(0, 3);
-  const copilotName  = profile.copilot_name || 'Ace';
+  const copilotName  = profile.copilot_name || 'Pilot';
   const hour         = new Date().getHours();
   const sign         = hour < 17 ? 'afternoon' : 'evening';
 

@@ -112,14 +112,8 @@ export default function SignInClient() {
 
         {/* Logo badge */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 32 }}>
-          <div style={{
-            width: 38, height: 38,
-            background: 'linear-gradient(135deg, #4a90d9, #0f4c81)',
-            borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 4px 14px rgba(74,144,217,.35)', flexShrink: 0
-          }}>
-            <span style={{ color: '#fff', fontWeight: 900, fontSize: 17 }}>P</span>
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="Pocket Pilot" width={38} height={38} style={{ flexShrink: 0, objectFit: 'contain' }} />
           <div>
             <div style={{ fontWeight: 800, fontSize: 15, color: '#0f172a', letterSpacing: '-0.3px', lineHeight: 1 }}>Pocket Pilot</div>
             <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>Real Estate AI</div>

@@ -4,8 +4,9 @@ import { useState, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 import { Icon } from '@/components/Icon';
-import type { Lead, DealMindUser, CalendarEvent } from '@/types';
+import type { Lead, DealMindUser, CalendarEvent, UserRole } from '@/types';
 import { useMobile } from '@/hooks/useMobile';
+import { getStages } from '@/lib/roleConfig';
 
 function parseNotes(raw: string | null): { date: string | null; text: string }[] {
   if (!raw?.trim()) return [];
@@ -32,7 +33,7 @@ function appendNote(existing: string | null, text: string): string {
   return existing?.trim() ? `${existing.trim()}\n[${d}] ${text.trim()}` : `[${d}] ${text.trim()}`;
 }
 
-const STAGES = ['New Lead', 'Contacted', 'Nurturing', 'Negotiating', 'Under Contract', 'Closed', 'Dead'];
+// STAGES is now role-specific — computed inside the component from profile.user_role
 const MOTIVATIONS = ['Unknown', 'Low', 'Medium', 'High'];
 
 // ─── Lead scoring ─────────────────────────────────────────────────────────────
@@ -73,6 +74,28 @@ function scoreLead(lead: Lead): number {
 
   // Normalize to 0–100 (max raw ≈ 140)
   return Math.min(100, Math.round((raw / 140) * 100));
+}
+
+// Real "latest activity" recency (ms since epoch), high = most recent.
+// 1) newest timestamp parsed from the Activity Log notes, else
+// 2) the lead's updated_at, else
+// 3) a fallback derived from last_contact (days-ago).
+function activityTs(lead: Lead): number {
+  const notes = lead.notes || '';
+  let newest = 0;
+  for (const m of notes.matchAll(/\[([^\]]+)\]/g)) {
+    const raw = m[1];
+    const withYear = /\d{4}/.test(raw) ? raw : `${raw} ${new Date().getFullYear()}`;
+    const t = Date.parse(withYear);
+    if (!Number.isNaN(t)) newest = Math.max(newest, t);
+  }
+  if (newest) return newest;
+  const updated = (lead as any).updated_at;
+  if (updated) {
+    const t = Date.parse(updated);
+    if (!Number.isNaN(t)) return t;
+  }
+  return Date.now() - (lead.last_contact || 0) * 86_400_000;
 }
 
 type SortMode = 'score' | 'activity' | 'alpha';
@@ -125,6 +148,8 @@ function guessCol(headers: string[], ...patterns: string[]): string {
 export function MyLeads({ profile, leads, setLeads, calendar, focusLeadId, onFocusCleared }: Props) {
   const supabase = createSupabaseBrowserClient();
   const isMobile = useMobile();
+  // Role-specific pipeline stages (falls back to wholesaler stages if no role set yet)
+  const STAGES = getStages(profile.user_role ?? 'wholesaler');
   const [sortBy, setSortBy] = useState<SortMode>('score');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
@@ -134,7 +159,7 @@ export function MyLeads({ profile, leads, setLeads, calendar, focusLeadId, onFoc
     } else {
       setSortBy(mode);
       // Sensible default per mode: score = hottest first, activity = most recent first, alpha = A–Z
-      setSortDir(mode === 'score' ? 'desc' : 'asc');
+      setSortDir(mode === 'alpha' ? 'asc' : 'desc');
     }
   }
   const [adding, setAdding] = useState(false);
@@ -242,7 +267,7 @@ export function MyLeads({ profile, leads, setLeads, calendar, focusLeadId, onFoc
   const sorted = [...active].sort((a, b) => {
     let cmp: number;
     if (sortBy === 'alpha')         cmp = a.name.localeCompare(b.name);
-    else if (sortBy === 'activity') cmp = a.last_contact - b.last_contact;
+    else if (sortBy === 'activity') cmp = activityTs(a) - activityTs(b);
     else                            cmp = scoreLead(a) - scoreLead(b); // ascending base
     return sortDir === 'asc' ? cmp : -cmp;
   });
@@ -385,6 +410,7 @@ export function MyLeads({ profile, leads, setLeads, calendar, focusLeadId, onFoc
         <LeadCard
           key={l.id}
           lead={l}
+          stages={STAGES}
           score={sortBy === 'score' ? scoreLead(l) : undefined}
           calendarEvents={calendar.filter(e => e.lead_id === l.id)}
           onUpdate={patch => updateLead(l.id, patch)}
@@ -407,9 +433,10 @@ export function MyLeads({ profile, leads, setLeads, calendar, focusLeadId, onFoc
 const URGENCY_COLOR = { high: '#ef4444', medium: '#f59e0b', low: '#10b981' };
 
 function LeadCard({
-  lead, score, calendarEvents, onUpdate, onDelete, isMobile, focusLead, onFocused
+  lead, stages, score, calendarEvents, onUpdate, onDelete, isMobile, focusLead, onFocused
 }: {
   lead: Lead;
+  stages: string[];
   score?: number;
   calendarEvents: CalendarEvent[];
   onUpdate: (patch: Partial<Lead>) => void;
@@ -486,8 +513,10 @@ function LeadCard({
           {score !== undefined && (() => {
             const tier = SCORE_TIER(score);
             return (
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 4,
+              <div
+                title={'Lead Score (0–100) — higher = hotter.\n• Motivation: High 40 / Medium 25 / Low 10\n• Stage: Negotiating 35 → Under Contract 30 → Contacted 20 → New 10\n• Recency: contacted today 25 → within 3d 20 → 7d 12 → 14d 5\n• AI urgency: up to 20\n• Notes & activity: up to 15\n• Phone/email on file: up to 5'}
+                style={{
+                display: 'flex', alignItems: 'center', gap: 4, cursor: 'help',
                 padding: '3px 9px', borderRadius: 999, fontSize: 11, fontWeight: 800,
                 background: tier.color + '15', color: tier.color, border: `1px solid ${tier.color}30`,
               }}>
@@ -496,14 +525,6 @@ function LeadCard({
               </div>
             );
           })()}
-          <div style={{
-            padding: '4px 10px',
-            background: lead.last_contact >= 7 ? 'rgba(255,92,124,0.15)' : 'var(--surface)',
-            color: lead.last_contact >= 7 ? 'var(--danger)' : 'var(--muted)',
-            borderRadius: 999, fontSize: 12, fontWeight: 600,
-          }}>
-            {lead.last_contact}d cold
-          </div>
         </div>
       </div>
 
@@ -647,7 +668,7 @@ function LeadCard({
           {/* Lead fields */}
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8 }}>
             <select value={lead.stage} onChange={e => onUpdate({ stage: e.target.value })}>
-              {STAGES.map(s => <option key={s}>{s}</option>)}
+              {stages.map(s => <option key={s}>{s}</option>)}
             </select>
             <select value={lead.motivation} onChange={e => onUpdate({ motivation: e.target.value })}>
               {MOTIVATIONS.map(m => <option key={m}>{m}</option>)}

@@ -232,7 +232,7 @@ export function Connectors({ profile, onProfileUpdate }: Props) {
       <div>
         <h2 style={{ marginBottom: 4 }}>Connectors</h2>
         <p style={{ color: 'var(--muted)', fontSize: 14 }}>
-          Connect your tools so {profile.copilot_name || 'Ace'} can pull data, sync leads, and automate outreach.
+          Connect your tools so {profile.copilot_name || 'Pilot'} can pull data, sync leads, and automate outreach.
         </p>
       </div>
 

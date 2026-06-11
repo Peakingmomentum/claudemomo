@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 import { Icon } from '@/components/Icon';
 import type { DealMindUser, Lead, CalendarEvent } from '@/types';
@@ -151,6 +151,16 @@ export function CalendarView({ profile, leads, calendar, onCalendarChange }: Pro
     setTimeout(() => setSyncMsg(null), 4000);
   }
 
+  // Auto-sync once when the calendar opens, so Google events appear without a manual click.
+  const autoSynced = useRef(false);
+  useEffect(() => {
+    if (autoSynced.current) return;
+    if (!(profile as any).gcal_connected) return;
+    autoSynced.current = true;
+    syncGcal();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   const selectedDayEvents = selectedDay
@@ -275,9 +285,9 @@ export function CalendarView({ profile, leads, calendar, onCalendarChange }: Pro
           </div>
 
           {/* Date cells */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gridAutoRows: isMobile ? '56px' : '96px', gap: 2 }}>
             {cells.map((cell, i) => {
-              if (!cell.date) return <div key={i} style={{ minHeight: isMobile ? 36 : 72 }} />;
+              if (!cell.date) return <div key={i} />;
               const key   = dateKey(cell.date);
               const evts  = eventsByDay[key] || [];
               const isToday = key === dateKey(today);
@@ -287,7 +297,7 @@ export function CalendarView({ profile, leads, calendar, onCalendarChange }: Pro
                   key={i}
                   onClick={() => setSelectedDay(cell.date)}
                   style={{
-                    minHeight: isMobile ? 36 : 72,
+                    height: '100%', overflow: 'hidden',
                     padding: isMobile ? '3px 2px' : '6px',
                     borderRadius: 8, cursor: 'pointer',
                     background: isSel ? 'rgba(74,144,217,.1)' : isToday ? 'rgba(74,144,217,.05)' : 'transparent',

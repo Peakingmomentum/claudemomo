@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
-import { AIAvatar } from '@/components/AIAvatar';
 import { Icon } from '@/components/Icon';
 import type { DealMindUser, Lead, ChatMessage, CalendarEvent } from '@/types';
 import { useMobile } from '@/hooks/useMobile';
@@ -13,8 +12,11 @@ import { CalendarView } from './CalendarView';
 import { Connectors } from './Connectors';
 import { Settings } from './Settings';
 import { CoachingTab } from './CoachingTab';
+import { TasksView } from './TasksView';
+import { CalculatorsTab } from './CalculatorsTab';
+import { AffiliateTab } from './AffiliateTab';
 
-type Tab = 'intel' | 'copilot' | 'coaching' | 'leads' | 'calendar' | 'connectors' | 'settings';
+type Tab = 'intel' | 'copilot' | 'coaching' | 'leads' | 'tasks' | 'calendar' | 'connectors' | 'settings' | 'calculators' | 'affiliate';
 
 interface Props {
   profile: DealMindUser;
@@ -33,36 +35,45 @@ function HudStat({ value, label, color }: { value: any; label: string; color: st
 }
 
 const DESKTOP_NAV: Array<[Tab, string, any]> = [
-  ['intel',      'Daily Intel',  'spark'],
-  ['leads',      'Pipeline',     'pipeline'],
-  ['coaching',   'Coaching',     'bulb'],
-  ['calendar',   'Calendar',     'calendar'],
-  ['connectors', 'Connectors',   'link'],
-  ['settings',   'Settings',     'user'],
+  ['intel',       'Daily Intel',  'spark'],
+  ['leads',       'Pipeline',     'pipeline'],
+  ['tasks',       'Tasks',        'check'],
+  ['calendar',    'Calendar',     'calendar'],
+  ['calculators', 'Calculators',  'dollar'],
+  ['coaching',    'Coaching',     'bulb'],
+  ['connectors',  'Connectors',   'link'],
+  ['affiliate',   'Affiliate',    'link'],
+  ['settings',    'Settings',     'user'],
 ];
 
 const MOBILE_NAV: Array<[Tab, string, any]> = [
   ['intel',    'Intel',    'spark'],
   ['leads',    'Pipeline', 'pipeline'],
-  ['copilot',  'Jarvis',   'send'],
+  ['copilot',  'Pilot',    'send'],
   ['coaching', 'Coaching', 'bulb'],
 ];
 
 // Tabs that live behind the mobile "More" sheet so the bottom bar stays uncluttered
 const MORE_NAV: Array<[Tab, string, any]> = [
-  ['calendar',   'Calendar',   'calendar'],
-  ['connectors', 'Connectors', 'link'],
-  ['settings',   'Settings',   'user'],
+  ['tasks',       'Tasks',        'check'],
+  ['calendar',    'Calendar',     'calendar'],
+  ['calculators', 'Calculators',  'dollar'],
+  ['affiliate',   'Affiliate',    'link'],
+  ['connectors',  'Connectors',   'link'],
+  ['settings',    'Settings',     'user'],
 ];
 
 const PAGE_TITLES: Record<Tab, string> = {
-  intel: 'Daily Intel',
-  copilot: 'AI Copilot',
-  coaching: 'Coaching',
-  leads: 'Pipeline',
-  calendar: 'Calendar',
-  connectors: 'Connectors',
-  settings: 'Settings',
+  intel:       'Daily Intel',
+  copilot:     'AI Copilot',
+  coaching:    'Coaching',
+  leads:       'Pipeline',
+  tasks:       'Tasks',
+  calendar:    'Calendar',
+  connectors:  'Connectors',
+  settings:    'Settings',
+  calculators: 'Calculators',
+  affiliate:   'Affiliate',
 };
 
 export default function DashboardClient({ profile: initialProfile, initialLeads, initialMessages, initialCalendar }: Props) {
@@ -75,7 +86,7 @@ export default function DashboardClient({ profile: initialProfile, initialLeads,
   const [showMore, setShowMore] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const supabase = createSupabaseBrowserClient();
-  const copilotName = profile.copilot_name || 'Copilot';
+  const copilotName = profile.copilot_name || 'Pilot';
   const isMobile = useMobile();
 
   useEffect(() => {
@@ -96,7 +107,7 @@ export default function DashboardClient({ profile: initialProfile, initialLeads,
   const now = new Date();
   const todayStr = now.toDateString();
   const tasksDueToday = calendar.filter(
-    e => new Date(e.event_date).toDateString() === todayStr
+    e => !e.completed_at && new Date(e.event_date).toDateString() === todayStr
   ).length;
 
   const totalPipeline = activeLeads
@@ -130,7 +141,8 @@ export default function DashboardClient({ profile: initialProfile, initialLeads,
       <aside className="sidebar">
         {/* Logo */}
         <div style={{ padding: '20px 18px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <AIAvatar name={copilotName} />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="Pocket Pilot" width={36} height={36} style={{ flexShrink: 0, objectFit: 'contain' }} />
           <div>
             <div style={{ fontWeight: 800, fontSize: 13, color: 'var(--text)' }}>Pocket Pilot</div>
             <div style={{ fontSize: 10, color: 'var(--faint)' }}>Real Estate AI</div>
@@ -233,19 +245,22 @@ export default function DashboardClient({ profile: initialProfile, initialLeads,
 
         {/* Content area */}
         <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? 12 : 20, minHeight: 0 }}>
-          {tab === 'intel'      && <DailyIntel profile={profile} leads={leads} calendar={calendar} />}
-          {tab === 'leads'      && <MyLeads profile={profile} leads={leads} setLeads={setLeads} calendar={calendar} focusLeadId={focusLeadId} onFocusCleared={() => setFocusLeadId(null)} />}
-          {tab === 'coaching'   && <CoachingTab profile={profile} />}
-          {tab === 'calendar'   && <CalendarView profile={profile} leads={leads} calendar={calendar} onCalendarChange={refreshCalendar} />}
-          {tab === 'connectors' && <Connectors profile={profile} onProfileUpdate={patch => setProfile(p => ({ ...p, ...patch }))} />}
-          {tab === 'settings'   && <Settings profile={profile} />}
+          {tab === 'intel'       && <DailyIntel profile={profile} leads={leads} calendar={calendar} />}
+          {tab === 'leads'       && <MyLeads profile={profile} leads={leads} setLeads={setLeads} calendar={calendar} focusLeadId={focusLeadId} onFocusCleared={() => setFocusLeadId(null)} />}
+          {tab === 'tasks'       && <TasksView profile={profile} leads={leads} calendar={calendar} onCalendarChange={refreshCalendar} />}
+          {tab === 'coaching'    && <CoachingTab profile={profile} />}
+          {tab === 'calendar'    && <CalendarView profile={profile} leads={leads} calendar={calendar} onCalendarChange={refreshCalendar} />}
+          {tab === 'connectors'  && <Connectors profile={profile} onProfileUpdate={patch => setProfile(p => ({ ...p, ...patch }))} />}
+          {tab === 'settings'    && <Settings profile={profile} />}
+          {tab === 'calculators' && <CalculatorsTab profile={profile} />}
+          {tab === 'affiliate'   && <AffiliateTab profile={profile} />}
           {isMobile && tab === 'copilot' && (
             <CopilotChat
               profile={profile}
               leads={activeLeads}
               messages={messages}
               setMessages={setMessages}
-              onLeadChange={refreshLeads}
+              onLeadChange={() => { refreshLeads(); refreshCalendar(); }}
               onNavigateToLead={id => { setFocusLeadId(id); setTab('leads'); }}
             />
           )}
@@ -257,9 +272,8 @@ export default function DashboardClient({ profile: initialProfile, initialLeads,
         <div className="ai-panel">
           {/* AI header */}
           <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-            <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#0f4c81,#4a90d9)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 900, fontSize: 13, flexShrink: 0 }}>
-              {copilotName[0]}
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt={copilotName} width={32} height={32} style={{ objectFit: 'contain', flexShrink: 0 }} />
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{copilotName}</div>
               <div style={{ fontSize: 10, color: '#10b981', display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -275,7 +289,7 @@ export default function DashboardClient({ profile: initialProfile, initialLeads,
             leads={activeLeads}
             messages={messages}
             setMessages={setMessages}
-            onLeadChange={refreshLeads}
+            onLeadChange={() => { refreshLeads(); refreshCalendar(); }}
             onNavigateToLead={id => { setFocusLeadId(id); setTab('leads'); }}
             embedded
           />

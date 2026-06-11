@@ -101,7 +101,7 @@ export default function OnboardingClient({ initialProfile }: { initialProfile: P
     setStep(s => s - 1);
   }
 
-  const copilotName = form.copilot_name || 'your Copilot';
+  const copilotName = form.copilot_name || 'Pilot';
 
   return (
     <main style={{ minHeight: '100vh', padding: 24 }}>
@@ -139,7 +139,7 @@ export default function OnboardingClient({ initialProfile }: { initialProfile: P
             >
               <AIAvatar name={copilotName} active />
               <input
-                placeholder="e.g. Maverick, Athena, Jarvis"
+                placeholder="e.g. Maverick, Athena, Pilot"
                 value={form.copilot_name || ''}
                 onChange={e => update({ copilot_name: e.target.value })}
               />

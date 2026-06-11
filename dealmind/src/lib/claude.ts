@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { DealMindUser, Lead, CalendarEvent, ChatMessage } from '@/types';
+import { getRoleAIContext } from '@/lib/roleConfig';
 
 const MODEL       = 'claude-sonnet-4-6';          // current Sonnet 4.6
 const HAIKU_MODEL = 'claude-haiku-4-5-20251001';  // current Haiku 4.5
@@ -11,25 +12,30 @@ export const anthropic = new Anthropic({
 export function buildSystemPrompt(
   user: DealMindUser,
   leads: Lead[],
-  calendar: CalendarEvent[]
+  calendar: CalendarEvent[],
+  tz?: string
 ): string {
   const urgent = leads.filter(l => !l.is_dead && l.last_contact >= 7);
   const hot    = leads.filter(l => !l.is_dead && l.motivation === 'High');
   const active = leads.filter(l => !l.is_dead);
-  const copilotName = user.copilot_name || 'Copilot';
+  const copilotName = user.copilot_name || 'Pilot';
 
   const now = new Date();
   const currentDateTime = now.toLocaleString('en-US', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-    hour: 'numeric', minute: '2-digit', timeZoneName: 'short'
+    hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
+    ...(tz ? { timeZone: tz } : {}),
   });
 
-  return `You are Pocket Pilot Copilot — the user has named you "${copilotName}".
-You are a Jarvis-style AI mentor and business partner for real estate professionals.
-You have REAL TOOLS that write directly to the user's pipeline and calendar — use them whenever the user shares lead info or asks you to take action.
+  const roleCtx = user.user_role ? getRoleAIContext(user.user_role) : '';
 
+  return `You are Pocket Pilot Copilot — the user has named you "${copilotName}".
+You are a Pilot-style AI mentor and business partner for real estate professionals.
+You have REAL TOOLS that write directly to the user's pipeline and calendar — use them whenever the user shares lead info or asks you to take action.
+You can ALSO read the user's Gmail and Google Calendar when connected: use read_email to look at their inbox and read_calendar to see their schedule. NEVER claim you "can't read email or calendar" — if Google is connected, call the tool; if it isn't, tell them to connect it in Connectors.
+${roleCtx ? `\nROLE NICHE CONTEXT:\n${roleCtx}\n` : ''}
 CURRENT DATE & TIME: ${currentDateTime}
-USER: ${user.user_name || 'Unknown'} | ${user.role || 'agent'} | ${user.city || 'Unknown'} market
+USER: ${user.user_name || 'Unknown'} | ${user.user_role || user.role || 'agent'} | ${user.city || 'Unknown'} market
 CRM: ${user.crm || 'none'} | Stage: ${user.stage || 'unknown'}
 
 SIGNATURE (use these EXACT values in any outreach — never a placeholder):
@@ -76,19 +82,20 @@ export function buildCoachingPrompt(user: DealMindUser): string {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
     hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
   });
+  const roleCtx = user.user_role ? getRoleAIContext(user.user_role) : '';
+  const nicheRole = user.user_role || user.role || 'agent';
 
   return `You are a real estate business coach and mentor — the user has named you ${copilotName}.
-You have 20+ years of experience coaching both investors and agents to scale their businesses.
+You have 20+ years of experience coaching investors and agents across all real estate niches.
 Your role is TEACHING and ADVISING. You do NOT manage pipelines or take actions — you educate.
-
+${roleCtx ? `\nNICHE CONTEXT — this student specializes in:\n${roleCtx}\n` : ''}
 CURRENT DATE & TIME: ${currentDateTime}
-STUDENT: ${user.user_name || 'Unknown'} | Role: ${user.role || 'agent'} | Market: ${user.city || 'Unknown'}
+STUDENT: ${user.user_name || 'Unknown'} | Niche: ${nicheRole} | Market: ${user.city || 'Unknown'}
 Stage: ${user.stage || 'unknown'} | CRM: ${user.crm || 'none'}
 Tone preference: ${user.tone_description || 'Direct, tactical, no fluff'}
 
 YOUR COACHING PHILOSOPHY:
-- You draw from the full RE playbook: wholesaling, fix-and-flip, creative finance, listings, rentals, commercial.
-- You adapt advice to the student's role (${user.role || 'agent'}), their specific market, and their stage.
+- You adapt ALL advice to the student's specific niche (${nicheRole}), their market, and their stage.
 - When asked for a script — you write the FULL script, copy-paste ready. Never just an outline.
 - When asked for a process — you give a numbered step-by-step framework.
 - When asked for strategy — you give ONE clear recommendation, then explain the reasoning.
@@ -98,13 +105,13 @@ YOUR COACHING PHILOSOPHY:
 
 COACHING RULES:
 1. TEACH the principle behind every tactic so the student understands why, not just what.
-2. Be SPECIFIC: reference their role (${user.role || 'agent'}), city (${user.city || 'their market'}), and stage in your answers.
+2. Be SPECIFIC: reference their niche (${nicheRole}), city (${user.city || 'their market'}), and stage in your answers.
 3. Scripts must be COMPLETE and immediately usable — no placeholders except [Name] and [Property].
 4. Responses should be proportional: concise for quick questions, thorough for strategy and scripts.
 5. Never use hollow filler: "Great question!", "Absolutely!", "Certainly!" — get straight to the point.
 6. End any response longer than 3 paragraphs with a bold "Coach's Challenge:" — one concrete action they can take in the next 24 hours.
 7. You do NOT add leads, update pipeline stages, or schedule calendar events — tell them to use their AI copilot (the other tab) for those actions.
-8. When discussing lead generation, always cover: effort level, expected timeline, cost range, and best fit (investor vs agent).
+8. When discussing lead generation, always cover: effort level, expected timeline, cost range, and best fit for their niche.
 9. When giving follow-up scripts, label each one by channel (SMS / Voicemail / Email) and situation.
 10. You are their most knowledgeable, direct, and honest advisor — act like it.`;
 }
@@ -176,7 +183,7 @@ export const COPILOT_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'add_calendar_event',
-    description: 'Add a follow-up, appointment, or deadline to the user\'s calendar.',
+    description: 'Add a follow-up, appointment, or deadline to the user\'s calendar. If Google Calendar is connected, this creates a REAL event on their Google Calendar and also tracks it in the pipeline; otherwise it is tracked in the pipeline only.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -203,18 +210,39 @@ export const COPILOT_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
-    name: 'create_ghl_task',
-    description: 'Create a task or reminder in the user\'s connected GoHighLevel account, attached to a lead (e.g. "Call John tomorrow at 2pm"). Only works if the user has connected GHL. Use when the user wants a call/text reminder tracked in their CRM.',
+    name: 'create_task',
+    description: 'Create a to-do / task in the user\'s LOCAL Pilot Tasks list (e.g. "Send Mike the buyer agreement"). Tasks live inside Pilot only and are shown in the Tasks menu — they are NEVER sent to GoHighLevel. Use this whenever the user wants a task, reminder, or to-do tracked. (GoHighLevel is only used for lead pipeline, contacts, and texting — not tasks.) For a timed appointment or meeting that belongs on the calendar, use add_calendar_event instead.',
     input_schema: {
       type: 'object' as const,
       properties: {
-        lead_id:   { type: 'string', description: 'The lead id from the pipeline list above' },
-        lead_name: { type: 'string', description: 'Name of the lead (used if id unknown)' },
-        title:     { type: 'string', description: 'Short task title, e.g. "Call John about offer"' },
-        body:      { type: 'string', description: 'Optional task detail/notes' },
-        due_date:  { type: 'string', description: 'ISO 8601 datetime when the task is due, e.g. 2026-06-04T14:00:00' },
+        title:     { type: 'string', description: 'Short task title, e.g. "Send buyer agreement to Mike"' },
+        lead_name: { type: 'string', description: 'Associated lead name if any' },
+        due_date:  { type: 'string', description: 'Optional ISO 8601 datetime the task is due, e.g. 2026-06-04T14:00:00. Omit if there is no specific due time.' },
       },
-      required: ['title', 'due_date'],
+      required: ['title'],
+    },
+  },
+  {
+    name: 'read_email',
+    description: 'Read the user\'s recent Gmail inbox messages (sender, subject, date, and a short snippet). Use when the user asks what\'s in their email, their most important emails, or to look for messages from a specific person. Requires Gmail connected in Connectors. You can pass a Gmail search query (e.g. "from:john", "is:unread", "newer_than:2d").',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        query: { type: 'string', description: 'Optional Gmail search query. Defaults to the inbox. Examples: "is:unread", "from:name@x.com", "newer_than:1d".' },
+        max:   { type: 'number', description: 'How many messages to fetch (default 10, max 20).' },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'read_calendar',
+    description: 'Read the user\'s upcoming Google Calendar events. Use when the user asks what\'s on their calendar, their schedule for the day/week, or upcoming appointments. Requires Google Calendar connected in Connectors.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        days: { type: 'number', description: 'How many days ahead to look (default 7).' },
+      },
+      required: [],
     },
   },
 ];
@@ -342,7 +370,7 @@ Generate a prioritized action list for this real estate agent. Return ONLY valid
 Rules: 5-7 todos sorted by priority. Use real lead names. 2-3 prospecting items. Times realistic for ${timeOfDay}.${ghlBlock ? ' Leads who REPLIED (especially UNREAD) are the hottest — make calling/texting them back the top todos. Add a todo for each booked appointment.' : ''} Return ONLY JSON.`;
 
   // ── Sonnet: generate personality-driven greeting + insight ──
-  const copilotName = profile.copilot_name || 'Ace';
+  const copilotName = profile.copilot_name || 'Pilot';
   const insightPrompt = `You are ${copilotName}, an elite real estate AI copilot.
 ${context}${ghlBlock}
 

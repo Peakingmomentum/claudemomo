@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { createVoiceSession } from '@/lib/voice';
+import { createAudioRecorder, type AudioRecorder } from '@/lib/voice';
 import { Icon } from './Icon';
 
 interface Props {
@@ -14,10 +14,10 @@ interface Props {
 
 export function VoiceField({ value, onChange, placeholder, multiline, summarize }: Props) {
   const [supported,  setSupported]  = useState(false); // drives mic button visibility
-  const [listening,  setListening]  = useState(false);
-  const [condensing, setCondensing] = useState(false);
+  const [listening,  setListening]  = useState(false); // recording in progress
+  const [condensing, setCondensing] = useState(false); // transcribing / summarizing
   const [micError,   setMicError]   = useState('');
-  const sessionRef   = useRef<ReturnType<typeof createVoiceSession> | null>(null);
+  const recorderRef  = useRef<AudioRecorder | null>(null);
   const baseRef      = useRef('');
   const onChangeRef  = useRef(onChange);
   const summarizeRef = useRef(summarize);
@@ -25,72 +25,76 @@ export function VoiceField({ value, onChange, placeholder, multiline, summarize 
   useEffect(() => { summarizeRef.current = summarize; }, [summarize]);
 
   useEffect(() => {
-    const session = createVoiceSession(
-      // live interim update
-      (transcript) => {
-        setMicError('');
-        onChangeRef.current(baseRef.current + transcript);
-      },
-      // onEnd — receives final transcript from voice.ts
-      async (finalTranscript) => {
+    const recorder = createAudioRecorder({
+      onError: (msg) => {
         setListening(false);
-        const raw = (baseRef.current + finalTranscript).trim();
-
-        if (!summarizeRef.current || raw.length < 120) {
-          onChangeRef.current(raw);
-          return;
-        }
-
+        setCondensing(false);
+        setMicError(msg);
+      },
+      // Recording stopped — transcribe the audio server-side, then optionally summarize.
+      onStop: async (audio) => {
+        setListening(false);
         setCondensing(true);
         try {
-          const res  = await fetch('/api/voice-summarize', {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ transcript: raw }),
-          });
-          const data = await res.json() as { summary?: string };
-          onChangeRef.current(data.summary || raw);
+          const ext = audio.type.includes('mp4') ? 'm4a' : audio.type.includes('webm') ? 'webm' : 'm4a';
+          const fd = new FormData();
+          fd.append('audio', audio, `voice.${ext}`);
+
+          const res  = await fetch('/api/transcribe', { method: 'POST', body: fd });
+          const data = await res.json() as { transcript?: string; error?: string };
+          const text = (data.transcript || '').trim();
+          if (!text) {
+            setMicError(data.error || 'No speech detected — try again');
+            return;
+          }
+
+          let combined = (baseRef.current + text).trim();
+          if (summarizeRef.current && combined.length >= 120) {
+            try {
+              const sres = await fetch('/api/voice-summarize', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({ transcript: combined }),
+              });
+              const sdata = await sres.json() as { summary?: string };
+              combined = sdata.summary || combined;
+            } catch { /* keep raw transcript on summarize failure */ }
+          }
+          onChangeRef.current(combined);
         } catch {
-          onChangeRef.current(raw);
+          setMicError('Transcription failed — try again');
         } finally {
           setCondensing(false);
         }
       },
-      // onError — mic denied or hardware error
-      (errMsg) => {
-        setListening(false);
-        setMicError(errMsg);
-      }
-    );
+    });
 
-    sessionRef.current = session;
-    // Set supported state so the mic button actually renders
-    setSupported(session.supported);
+    recorderRef.current = recorder;
+    setSupported(recorder.supported);
   }, []); // runs once after mount
 
-  const toggle = () => {
+  const toggle = async () => {
     if (!supported || condensing) return;
     setMicError('');
     if (listening) {
-      sessionRef.current!.stop();
-      // onEnd handles setListening(false)
+      recorderRef.current!.stop(); // onStop handles transcription + setListening(false)
     } else {
       baseRef.current = value ? value + ' ' : '';
-      sessionRef.current!.start();
-      setListening(true);
+      const started = await recorderRef.current!.start();
+      if (started) setListening(true); // onError already surfaced if it failed
     }
   };
 
   const Tag = multiline ? 'textarea' : 'input';
   const micBg    = listening ? 'var(--danger)' : condensing ? '#f59e0b' : 'var(--surface)';
-  const micTitle = listening ? 'Stop recording' : condensing ? 'Summarizing…' : 'Start voice input';
+  const micTitle = listening ? 'Stop recording' : condensing ? 'Transcribing…' : 'Start voice input';
 
   return (
     <div style={{ position: 'relative', width: '100%' }}>
       <Tag
         value={value}
         onChange={e => onChange((e.target as HTMLInputElement).value)}
-        placeholder={condensing ? 'Summarizing…' : placeholder}
+        placeholder={condensing ? 'Transcribing…' : placeholder}
         disabled={condensing}
         style={{
           width: '100%',
@@ -137,7 +141,7 @@ export function VoiceField({ value, onChange, placeholder, multiline, summarize 
             display: 'inline-block',
             animation: 'pulse 1s infinite',
           }} />
-          Listening…
+          Recording…
         </div>
       )}
 

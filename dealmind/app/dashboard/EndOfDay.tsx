@@ -34,7 +34,7 @@ export function EndOfDay({ profile, leads }: { profile: DealMindUser; leads: Lea
       <section className="card">
         <h2>End of Day</h2>
         <p style={{ color: 'var(--muted)', marginTop: 8 }}>
-          Let {profile.copilot_name || 'your Copilot'} debrief the day and set tomorrow's plan.
+          Let {profile.copilot_name || 'Pilot'} debrief the day and set tomorrow's plan.
         </p>
         <button className="btn" onClick={generate} disabled={loading} style={{ marginTop: 16 }}>
           {loading ? 'Generating…' : 'Run EOD recap'}

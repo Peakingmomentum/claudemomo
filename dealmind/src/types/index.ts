@@ -1,12 +1,20 @@
 export type Role = 'investor' | 'agent' | 'both' | 'brokerage';
 
+// 5-niche role picker (added in 008 migration)
+export type UserRole = 'wholesaler' | 'realtor' | 'storage_investor' | 'commercial_re' | 'industrial';
+
 export interface DealMindUser {
   id: string;
   email: string;
   user_name: string | null;
   company_name: string | null;
   role: Role | null;
+  user_role: UserRole | null;
+  user_role_set_at: string | null;
   copilot_name: string | null;
+  referral_code: string | null;
+  referred_by: string | null;
+  tenant_id: string | null;
   market_type: string | null;
   city: string | null;
   stage: string | null;
@@ -88,6 +96,7 @@ export interface CalendarEvent {
   synced_from: string | null;
   description: string | null;
   gcal_event_id: string | null;
+  completed_at: string | null;
 }
 
 export type FlagType =

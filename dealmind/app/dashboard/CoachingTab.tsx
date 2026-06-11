@@ -5,67 +5,17 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 import { Icon } from '@/components/Icon';
 import { VoiceField } from '@/components/VoiceField';
 import type { ChatMessage, DealMindUser } from '@/types';
+import { getPromptCategories } from '@/lib/roleConfig';
 
 interface Props {
   profile: DealMindUser;
 }
 
-// ── Prompt library ────────────────────────────────────────────
-
-const PROMPT_CATEGORIES = [
-  {
-    label: 'Lead Generation',
-    icon: 'target' as const,
-    color: '#4a90d9',
-    prompts: [
-      'Give me a door knocking script for an absentee owner neighborhood',
-      'Design a direct mail sequence for probate leads — what should the copy say?',
-      'How do I structure Facebook ads targeting distressed homeowners? Give me the audience settings and ad copy.',
-      'Walk me through a driving-for-dollars system I can run in 2 hours a week',
-      'Give me a cold calling opener that doesn\'t sound scripted — and the follow-up if they say "not interested"',
-    ],
-  },
-  {
-    label: 'Follow-Up Scripts',
-    icon: 'phone' as const,
-    color: '#10b981',
-    prompts: [
-      'Write a 5-touch SMS sequence for a seller who said "call me in 3 months"',
-      'Give me a voicemail script that actually gets callbacks',
-      'Write a 3-email drip for a warm lead who went quiet after our first call',
-      'How do I follow up after a seller says "I\'m not ready yet" without being annoying?',
-      'Write a breakup message for a lead I\'ve followed up with 8+ times',
-    ],
-  },
-  {
-    label: 'Offers & Contracts',
-    icon: 'dollar' as const,
-    color: '#f59e0b',
-    prompts: [
-      'Help me structure a subject-to offer — what do I say to the seller and what do I watch for in the contract?',
-      'Give me a negotiation script for lowering an asking price by 20% without losing the deal',
-      'What red flags should I look for when reviewing an as-is residential purchase agreement?',
-      'How do I explain seller financing to a homeowner who\'s never heard of it?',
-      'Walk me through comping a deal in a rural market with very few comparable sales',
-    ],
-  },
-  {
-    label: 'Strategy & Growth',
-    icon: 'chart-bar' as const,
-    color: '#0f4c81',
-    prompts: [
-      'I want to scale from 1-2 deals a month to 5+. What do I need to build or change?',
-      'What KPIs should I track weekly to know if my pipeline is healthy?',
-      'I have 30+ active leads. Walk me through how to prioritize them this week.',
-      'What\'s the difference between wholesaling, fix-and-flip, and subject-to? Which fits my market?',
-      'When does it make sense to hire a VA vs. a full-time acquisitions person?',
-    ],
-  },
-];
-
 // ── Component ─────────────────────────────────────────────────
 
 export function CoachingTab({ profile }: Props) {
+  // Role-specific prompt categories
+  const PROMPT_CATEGORIES = getPromptCategories(profile.user_role ?? 'wholesaler');
   const [messages, setMessages]       = useState<ChatMessage[]>([]);
   const [draft, setDraft]             = useState('');
   const [sending, setSending]         = useState(false);
@@ -209,7 +159,8 @@ export function CoachingTab({ profile }: Props) {
                   background: cat.color + '22',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                 }}>
-                  <Icon name={cat.icon} size={13} />
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                  <Icon name={cat.icon as any} size={13} />
                 </div>
                 <span style={{ fontWeight: 700, fontSize: 12, color: 'var(--text)' }}>{cat.label}</span>
               </div>

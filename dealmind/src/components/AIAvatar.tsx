@@ -12,14 +12,14 @@ export function AIAvatar({ active = false, size = 48, name }: Props) {
       <div
         style={{
           width: size, height: size, borderRadius: '50%',
-          background: 'linear-gradient(135deg, var(--accent), var(--accent2))',
-          boxShadow: active ? '0 0 24px rgba(15,76,129,0.55)' : '0 0 0 transparent',
+          boxShadow: active ? '0 0 24px rgba(240,120,30,0.55)' : '0 0 0 transparent',
           transition: 'box-shadow .3s',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: 'white', fontWeight: 700, fontSize: size * 0.4
+          flexShrink: 0
         }}
       >
-        {(name?.[0] || 'C').toUpperCase()}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.png" alt={name || 'Pilot'} width={size} height={size} style={{ objectFit: 'contain' }} />
       </div>
       {name && (
         <div>

@@ -3,7 +3,10 @@ import { buildSystemPrompt, buildCoachingPrompt, COPILOT_TOOLS, anthropic, enric
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { notifySlack } from '@/lib/slack';
 import { checkRateLimit, rateLimitResponse, LIMITS } from '@/lib/ratelimit';
-import { textLeadViaGhl, upsertGhlContact, createGhlTask, type GhlCreds } from '@/lib/ghl';
+import { textLeadViaGhl, upsertGhlContact, type GhlCreds } from '@/lib/ghl';
+import { clientFromTokens, listRecentEmails, listCalendarEvents, createCalendarEvent } from '@/lib/google';
+
+type GoogleCreds = { accessToken: string; refreshToken: string | null };
 
 export const runtime = 'nodejs';
 
@@ -20,6 +23,19 @@ function findPlaceholders(msg: string): string[] {
   return [...hits];
 }
 
+// Convert a model-generated datetime to a correct UTC ISO string.
+// The model emits naive local wall-clock time (e.g. "2026-06-10T10:00:00").
+// tzOffsetMin is the browser's getTimezoneOffset() (UTC - local, in minutes).
+// If the string already carries a timezone (Z or ±hh:mm), it's returned as-is.
+function normalizeToUtc(dt: string | undefined, tzOffsetMin: number): string | undefined {
+  if (!dt) return dt;
+  const s = dt.trim();
+  if (/(?:[zZ]|[+-]\d{2}:?\d{2})$/.test(s)) return s;
+  const asIfUtc = new Date(s + 'Z').getTime();
+  if (Number.isNaN(asIfUtc)) return dt;
+  return new Date(asIfUtc + tzOffsetMin * 60000).toISOString();
+}
+
 // ─── Tool executor ────────────────────────────────────────────
 
 async function executeTool(
@@ -32,7 +48,9 @@ async function executeTool(
   copilotName: string,
   ghl: GhlCreds | null,
   senderName: string,
-  senderCompany: string | null
+  senderCompany: string | null,
+  google: GoogleCreds | null,
+  tzOffsetMin: number
 ): Promise<{ result: string; action?: Record<string, any> }> {
 
   // Helper: resolve lead by id or name
@@ -180,7 +198,9 @@ async function executeTool(
   }
 
   if (toolName === 'add_calendar_event') {
-    const { title, event_date, event_type, lead_name } = input;
+    const { title, event_type, lead_name } = input;
+    const event_date = normalizeToUtc(input.event_date, tzOffsetMin);
+    if (!event_date) return { result: 'Event needs a date/time.' };
     let lead_id = null;
     if (lead_name) {
       const lead = findLead(undefined, lead_name);
@@ -191,10 +211,59 @@ async function executeTool(
       event_type: event_type || 'follow_up', lead_id,
     }).select().single();
     if (error) return { result: `Error adding event: ${error.message}` };
+
+    // If Google Calendar is connected, also create a real event on their calendar.
+    let googleNote = '';
+    if (google) {
+      try {
+        const auth = clientFromTokens(google.accessToken, google.refreshToken);
+        await createCalendarEvent(auth, { title, startISO: event_date, description: lead_name ? `Lead: ${lead_name}` : undefined });
+        googleNote = ' Synced to Google Calendar.';
+      } catch (e: any) {
+        const msg = e?.response?.data?.error?.message || e?.message || '';
+        googleNote = /insufficient|scope|permission/i.test(msg)
+          ? ' (Tracked in pipeline only — reconnect Google Calendar in Connectors to grant create-event access, then it will sync.)'
+          : ' (Could not sync to Google Calendar.)';
+      }
+    }
+
     return {
-      result: `Calendar event "${title}" added for ${new Date(event_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.`,
+      result: `Calendar event "${title}" added for ${new Date(event_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.${googleNote}`,
       action: { type: 'event_added', event },
     };
+  }
+
+  if (toolName === 'read_email') {
+    if (!google) return { result: 'Gmail is not connected. Tell the user to connect Gmail in Connectors first.' };
+    try {
+      const auth = clientFromTokens(google.accessToken, google.refreshToken);
+      const max = Math.min(Math.max(Number(input.max) || 10, 1), 20);
+      const emails = await listRecentEmails(auth, input.query || 'in:inbox', max);
+      if (!emails.length) return { result: 'No emails found for that query.' };
+      const formatted = emails.map((e, i) =>
+        `${i + 1}. From: ${e.from}\n   Subject: ${e.subject}\n   Date: ${e.date}\n   ${e.snippet}`
+      ).join('\n\n');
+      return { result: `Recent emails:\n\n${formatted}` };
+    } catch (e: any) {
+      return { result: `Could not read email: ${e?.response?.data?.error?.message || e?.message || 'unknown error'}. The user may need to reconnect Gmail in Connectors.` };
+    }
+  }
+
+  if (toolName === 'read_calendar') {
+    if (!google) return { result: 'Google Calendar is not connected. Tell the user to connect it in Connectors first.' };
+    try {
+      const auth = clientFromTokens(google.accessToken, google.refreshToken);
+      const days = Math.min(Math.max(Number(input.days) || 7, 1), 60);
+      const events = await listCalendarEvents(auth, days);
+      if (!events.length) return { result: `No events on the calendar in the next ${days} days.` };
+      const formatted = events.map(ev => {
+        const when = new Date(ev.start).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+        return `• ${when} — ${ev.summary}${ev.location ? ` (${ev.location})` : ''}`;
+      }).join('\n');
+      return { result: `Upcoming events (next ${days} days):\n\n${formatted}` };
+    } catch (e: any) {
+      return { result: `Could not read calendar: ${e?.response?.data?.error?.message || e?.message || 'unknown error'}. The user may need to reconnect Google Calendar in Connectors.` };
+    }
   }
 
   if (toolName === 'text_lead') {
@@ -249,24 +318,24 @@ async function executeTool(
     };
   }
 
-  if (toolName === 'create_ghl_task') {
-    if (!ghl) return { result: 'GoHighLevel is not connected. Ask the user to connect GHL in Connectors first.' };
-    const lead = findLead(input.lead_id, input.lead_name);
-    if (!lead) return { result: `Could not find lead "${input.lead_name || input.lead_id}".` };
-    if (!input.title?.trim() || !input.due_date) return { result: 'Task needs a title and a due date.' };
-
-    // Ensure the lead exists as a GHL contact, then attach the task
-    const upsert = await upsertGhlContact(ghl, { name: lead.name, phone: lead.phone, email: lead.email });
-    if (!upsert.ok) return { result: `Could not create task: ${upsert.error}` };
-
-    const task = await createGhlTask(ghl, upsert.contactId, {
-      title: input.title, body: input.body, dueDate: input.due_date,
+  if (toolName === 'create_task') {
+    // Tasks are LOCAL to Pilot (the Tasks menu) — never pushed to GoHighLevel.
+    const title = (input.title || '').trim();
+    if (!title) return { result: 'Task needs a title.' };
+    let lead_id = null;
+    if (input.lead_name) {
+      const lead = findLead(undefined, input.lead_name);
+      if (lead) lead_id = lead.id;
+    }
+    const eventDate = normalizeToUtc(input.due_date, tzOffsetMin) || new Date().toISOString();
+    const { error } = await supabase.from('calendar_events').insert({
+      user_id: userId, title, event_date: eventDate, event_type: 'task', lead_id,
     });
-    if (!task.ok) return { result: `Could not create task: ${task.error}` };
-
-    return {
-      result: `Task "${input.title}" created in GoHighLevel for ${lead.name}, due ${new Date(input.due_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.`,
-    };
+    if (error) return { result: `Error creating task: ${error.message}` };
+    const due = input.due_date
+      ? `, due ${new Date(input.due_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`
+      : '';
+    return { result: `Task "${title}" added to your Tasks list${due}.` };
   }
 
   return { result: `Unknown tool: ${toolName}` };
@@ -282,14 +351,21 @@ export async function POST(req: NextRequest) {
   const allowed = await checkRateLimit(`copilot:${user.id}`, LIMITS.copilot);
   if (!allowed) return rateLimitResponse(LIMITS.copilot);
 
-  const { message, context } = await req.json() as { message: string; context?: string };
+  const { message, context, tz, tzOffset } = await req.json() as
+    { message: string; context?: string; tz?: string; tzOffset?: number };
+  // getTimezoneOffset() minutes from the browser (e.g. 420 for PDT). Used to
+  // convert the model's naive local datetimes into correct UTC instants.
+  const tzOffsetMin = typeof tzOffset === 'number' ? tzOffset : 0;
   if (!message?.trim()) return NextResponse.json({ error: 'empty message' }, { status: 400 });
 
   const isCoaching = context === 'coaching';
 
   // Build history query filtered by context so coaching and copilot histories stay separate
+  // Most recent 50 messages (descending), reversed to chronological below.
+  // NOTE: must be descending — ascending+limit would pin the model to the
+  // OLDEST 50 messages and it would never see recent context.
   const historyBase = supabase.from('chat_messages').select('role, content')
-    .eq('user_id', user.id).order('created_at', { ascending: true }).limit(50);
+    .eq('user_id', user.id).order('created_at', { ascending: false }).limit(50);
   const historyQuery = isCoaching
     ? historyBase.eq('context', 'coaching')
     : historyBase.or('context.is.null,context.eq.chat');
@@ -305,21 +381,25 @@ export async function POST(req: NextRequest) {
   if (!profile) return NextResponse.json({ error: 'no profile' }, { status: 400 });
 
   const slackWebhook = (profile as any).slack_webhook_url || null;
-  const copilotName  = (profile as any).copilot_name || 'Pocket Pilot';
+  const copilotName  = (profile as any).copilot_name || 'Pilot';
   const ghl: GhlCreds | null =
     (profile as any).ghl_connected && (profile as any).ghl_api_key && (profile as any).ghl_location_id
       ? { apiKey: (profile as any).ghl_api_key, locationId: (profile as any).ghl_location_id }
       : null;
   const senderName    = (profile as any).user_name || '';
   const senderCompany = (profile as any).company_name || null;
+  const google: GoogleCreds | null =
+    (profile as any).gmail_connected && (profile as any).gmail_access_token
+      ? { accessToken: (profile as any).gmail_access_token, refreshToken: (profile as any).gmail_refresh_token || null }
+      : null;
 
   const systemPrompt = isCoaching
     ? buildCoachingPrompt(profile as any)
-    : buildSystemPrompt(profile as any, (leads || []) as any, (calendar || []) as any);
+    : buildSystemPrompt(profile as any, (leads || []) as any, (calendar || []) as any, tz);
 
   // Build message history
   const apiMessages: { role: 'user' | 'assistant'; content: any }[] = [
-    ...(history || []).map(h => ({ role: h.role as 'user' | 'assistant', content: h.content })),
+    ...(history || []).slice().reverse().map(h => ({ role: h.role as 'user' | 'assistant', content: h.content })),
     { role: 'user', content: message },
   ];
 
@@ -357,7 +437,7 @@ export async function POST(req: NextRequest) {
       if (block.type !== 'tool_use') continue;
       const { result, action } = await executeTool(
         block.name, block.input as Record<string, any>,
-        user.id, supabase, currentLeads, slackWebhook, copilotName, ghl, senderName, senderCompany
+        user.id, supabase, currentLeads, slackWebhook, copilotName, ghl, senderName, senderCompany, google, tzOffsetMin
       );
       if (action) {
         actions.push(action);

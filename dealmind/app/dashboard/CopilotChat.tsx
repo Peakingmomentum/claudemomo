@@ -108,10 +108,16 @@ export function CopilotChat({ profile, leads, messages, setMessages, onLeadChang
   const [sending, setSending]         = useState(false);
   const [suggestOpen, setSuggestOpen] = useState(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
-  const copilotName = profile.copilot_name || 'Copilot';
+  const didInitialScroll = useRef(false);
+  const copilotName = profile.copilot_name || 'Pilot';
 
+  // On open, jump straight to the most recent message (instant); animate smoothly
+  // for messages added afterward.
   useEffect(() => {
-    scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: 'smooth' });
+    const el = scrollerRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: didInitialScroll.current ? 'smooth' : 'auto' });
+    didInitialScroll.current = true;
   }, [messages.length]);
 
   async function send(text?: string) {
@@ -133,7 +139,12 @@ export function CopilotChat({ profile, leads, messages, setMessages, onLeadChang
       const res = await fetch('/api/claude', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: msg, context: 'chat' }),
+        body: JSON.stringify({
+          message: msg,
+          context: 'chat',
+          tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          tzOffset: new Date().getTimezoneOffset(),
+        }),
       });
       const data = await res.json() as { reply?: string; error?: string; actions?: any[] };
       const reply: ChatMessage = {

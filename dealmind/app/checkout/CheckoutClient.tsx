@@ -21,11 +21,11 @@ export default function CheckoutClient({
     <main style={{ minHeight: '100vh', padding: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div className="card" style={{ maxWidth: 480, width: '100%' }}>
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
-          <AIAvatar name={copilotName || 'Copilot'} active size={64} />
+          <AIAvatar name={copilotName || 'Pilot'} active size={64} />
         </div>
 
         <h1 style={{ fontSize: 28, marginBottom: 8, textAlign: 'center' }}>
-          {userName ? `${userName}, ready to unlock ${copilotName || 'your Copilot'}?` : `Ready to unlock ${copilotName || 'your Copilot'}?`}
+          {userName ? `${userName}, ready to unlock ${copilotName || 'Pilot'}?` : `Ready to unlock ${copilotName || 'Pilot'}?`}
         </h1>
         <p style={{ color: 'var(--muted)', textAlign: 'center', marginBottom: 32 }}>
           One plan. Full access. Cancel anytime.
