@@ -76,10 +76,10 @@ export default function SignInClient() {
 
     } else if (mode === 'reset') {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/callback`
+        redirectTo: `${window.location.origin}/auth/callback?redirect=/auth/reset`
       });
       if (error) setErr(error.message);
-      else setOk('Password reset email sent — check your inbox.');
+      else setOk('Password reset email sent — check your inbox. Open the link to set a new password.');
     }
 
     setLoading(false);
