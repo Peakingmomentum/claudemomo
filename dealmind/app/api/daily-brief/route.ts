@@ -28,12 +28,12 @@ export async function GET(req: NextRequest) {
   const forceRefresh = new URL(req.url).searchParams.has('refresh');
   const today = new Date().toISOString().split('T')[0];
 
+  // The day cache holds ONLY the LLM narrative (greeting/focus/insight/prospecting).
+  // Deterministic sections (priority leads, tasks, appointments, GHL inbox) are
+  // always recomputed live below so they stay current through the day.
+  let cachedNarrative = null;
   if (!forceRefresh && profile.daily_brief_date === today && profile.daily_brief_cache) {
-    try {
-      return NextResponse.json({ brief: JSON.parse(profile.daily_brief_cache), cached: true });
-    } catch {
-      // Cache corrupted — fall through and regenerate
-    }
+    try { cachedNarrative = JSON.parse(profile.daily_brief_cache); } catch { /* regenerate */ }
   }
 
   // Pull GHL CRM activity (replies, appointments) when connected — best effort.
@@ -53,16 +53,23 @@ export async function GET(req: NextRequest) {
       (leads || []) as any,
       (calendar || []) as any,
       ghlContext,
-      (tasks || []) as any
+      (tasks || []) as any,
+      cachedNarrative
     );
 
-    // Cache it
-    await supabase.from('users').update({
-      daily_brief_cache: JSON.stringify(brief),
-      daily_brief_date: today,
-    }).eq('id', user.id);
+    // Persist just the narrative for the rest of today if we generated it fresh.
+    if (!cachedNarrative) {
+      const narrative = {
+        greeting: brief.greeting, focus: brief.focus,
+        insight: brief.insight, prospecting: brief.prospecting,
+      };
+      await supabase.from('users').update({
+        daily_brief_cache: JSON.stringify(narrative),
+        daily_brief_date: today,
+      }).eq('id', user.id);
+    }
 
-    return NextResponse.json({ brief, cached: false });
+    return NextResponse.json({ brief });
   } catch (err) {
     console.error('[daily-brief] generation failed:', err);
     return NextResponse.json(

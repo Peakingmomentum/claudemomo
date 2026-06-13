@@ -6,6 +6,7 @@ import { Icon } from '@/components/Icon';
 import type { Lead, DealMindUser, CalendarEvent, UserRole } from '@/types';
 import { useMobile } from '@/hooks/useMobile';
 import { getStages } from '@/lib/roleConfig';
+import { scoreLead } from '@/lib/leadScore';
 
 function parseNotes(raw: string | null): { date: string | null; text: string }[] {
   if (!raw?.trim()) return [];
@@ -34,46 +35,6 @@ function appendNote(existing: string | null, text: string): string {
 
 // STAGES is now role-specific — computed inside the component from profile.user_role
 const MOTIVATIONS = ['Unknown', 'Low', 'Medium', 'High'];
-
-// ─── Lead scoring ─────────────────────────────────────────────────────────────
-// Returns 0–100 normalized score. Notes activity + AI urgency both contribute.
-
-function scoreLead(lead: Lead): number {
-  let raw = 0;
-
-  // Motivation (0–40)
-  raw += ({ High: 40, Medium: 25, Low: 10, Unknown: 5 } as Record<string, number>)[lead.motivation] ?? 5;
-
-  // Stage (0–35) — closer to close = more valuable
-  raw += ({
-    Negotiating: 35, 'Under Contract': 30, Contacted: 20,
-    Nurturing: 15, 'New Lead': 10, Closed: 0, Dead: 0,
-  } as Record<string, number>)[lead.stage] ?? 5;
-
-  // Recency of last contact (0–25) — fresh contact = higher score
-  if      (lead.last_contact === 0)  raw += 25;
-  else if (lead.last_contact <= 3)   raw += 20;
-  else if (lead.last_contact <= 7)   raw += 12;
-  else if (lead.last_contact <= 14)  raw += 5;
-
-  // AI urgency from enrichment — includes note analysis (0–20)
-  if (lead.ai_enrichment) {
-    raw += ({ high: 20, medium: 12, low: 5 } as Record<string, number>)[lead.ai_enrichment.urgency] ?? 0;
-  }
-
-  // Notes activity: each timestamped entry signals engagement (0–15)
-  if (lead.notes) {
-    const entryCount = (lead.notes.match(/^\[/gm) || []).length;
-    raw += Math.min(entryCount * 3, 15);
-  }
-
-  // Contact completeness — more info = more actionable (0–5)
-  if (lead.phone) raw += 3;
-  if (lead.email) raw += 2;
-
-  // Normalize to 0–100 (max raw ≈ 140)
-  return Math.min(100, Math.round((raw / 140) * 100));
-}
 
 // Real "latest activity" recency (ms since epoch), high = most recent.
 // 1) newest timestamp parsed from the Activity Log notes, else

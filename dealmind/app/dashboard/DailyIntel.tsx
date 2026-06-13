@@ -5,24 +5,27 @@ import { Icon } from '@/components/Icon';
 import type { DealMindUser, Lead, CalendarEvent } from '@/types';
 import { useMobile } from '@/hooks/useMobile';
 
-interface Todo {
-  priority: 'high' | 'medium' | 'low';
-  time: string;
-  task: string;
-  reason: string;
-  lead: string | null;
-}
 interface Prospecting { action: string; detail: string; }
+interface PriorityLead { id: string; name: string; score: number; stage: string; reason: string; }
+interface TaskItem { id: string; title: string; due: string; }
+interface Appt { title: string; when: string; source: 'app' | 'ghl'; }
+interface GhlReply { name: string; lead: string; message: string; unread: boolean; }
+interface GhlHeadsUp { name: string; message: string; unread: boolean; }
 interface Brief {
   greeting: string;
   focus: string;
-  todos: Todo[];
-  prospecting: Prospecting[];
   insight: string;
+  prospecting: Prospecting[];
+  priorityLeads: PriorityLead[];
+  tasksDueToday: TaskItem[];
+  tasksOverdue: TaskItem[];
+  appointments: Appt[];
+  ghlReplies: GhlReply[];
+  ghlHeadsUp: GhlHeadsUp[];
+  ghlConnected: boolean;
 }
 
-const PRIORITY_COLOR = { high: '#ef4444', medium: '#f59e0b', low: '#4a90d9' };
-const PRIORITY_BG    = { high: 'rgba(239,68,68,.08)', medium: 'rgba(245,158,11,.08)', low: 'rgba(74,144,217,.08)' };
+const scoreColor = (s: number) => s >= 70 ? '#ef4444' : s >= 45 ? '#f59e0b' : '#4a90d9';
 
 interface Props { profile: DealMindUser; leads: Lead[]; calendar: CalendarEvent[]; }
 
@@ -30,7 +33,6 @@ export function DailyIntel({ profile, leads, calendar }: Props) {
   const [brief, setBrief]       = useState<Brief | null>(null);
   const [loading, setLoading]   = useState(true);
   const [briefError, setBriefError] = useState<string | null>(null);
-  const [checked, setChecked]   = useState<Set<number>>(new Set());
   const [refresh, setRefresh]   = useState(false);
   const [eodOpen, setEodOpen]   = useState(false);
   const isMobile = useMobile();
@@ -54,31 +56,6 @@ export function DailyIntel({ profile, leads, calendar }: Props) {
       .catch(err => setBriefError(String(err)))
       .finally(() => { setLoading(false); setRefresh(false); });
   }, [refresh]);
-
-  const doneStorageKey = `di-done-${profile.id}-${new Date().toISOString().split('T')[0]}`;
-
-  // Restore completed to-dos for today once the (day-stable) brief loads,
-  // so a page refresh doesn't resurrect tasks already checked off.
-  useEffect(() => {
-    if (!brief) return;
-    try {
-      const saved: string[] = JSON.parse(localStorage.getItem(doneStorageKey) || '[]');
-      const idx = new Set<number>();
-      brief.todos.forEach((t, i) => { if (saved.includes(t.task)) idx.add(i); });
-      setChecked(idx);
-    } catch { /* ignore unreadable storage */ }
-  }, [brief]);
-
-  function toggleCheck(i: number) {
-    setChecked(s => {
-      const n = new Set(s); n.has(i) ? n.delete(i) : n.add(i);
-      if (brief) {
-        const tasks = brief.todos.filter((_, j) => n.has(j)).map(t => t.task);
-        try { localStorage.setItem(doneStorageKey, JSON.stringify(tasks)); } catch { /* ignore */ }
-      }
-      return n;
-    });
-  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -117,7 +94,7 @@ export function DailyIntel({ profile, leads, calendar }: Props) {
               </div>
             </div>
           </div>
-          <button onClick={() => { setBrief(null); setChecked(new Set()); setRefresh(true); }}
+          <button onClick={() => { setBrief(null); setRefresh(true); }}
             style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 8,
               padding: '6px 12px', fontSize: 12, cursor: 'pointer', color: 'var(--muted)',
               display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -151,57 +128,90 @@ export function DailyIntel({ profile, leads, calendar }: Props) {
               </p>
             </div>
 
-            {/* TO-DO list */}
-            <div>
-              <h3 style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: 10 }}>
-                Today's To-Dos
-              </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {(brief.todos || []).map((todo, i) => (
-                  <div key={i} onClick={() => toggleCheck(i)}
-                    style={{
-                      display: 'flex', alignItems: 'flex-start', gap: 12,
-                      padding: '12px 14px', borderRadius: 10, cursor: 'pointer',
-                      background: checked.has(i) ? 'var(--surface)' : PRIORITY_BG[todo.priority],
-                      border: `1px solid ${checked.has(i) ? 'var(--border)' : PRIORITY_COLOR[todo.priority] + '30'}`,
-                      opacity: checked.has(i) ? 0.5 : 1,
-                      transition: 'all .15s'
-                    }}>
-                    <div style={{
-                      width: 18, height: 18, borderRadius: 5, flexShrink: 0, marginTop: 1,
-                      border: `2px solid ${PRIORITY_COLOR[todo.priority]}`,
-                      background: checked.has(i) ? PRIORITY_COLOR[todo.priority] : 'transparent',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center'
-                    }}>
-                      {checked.has(i) && <span style={{ color: '#fff', fontSize: 10 }}>✓</span>}
-                    </div>
-                    <div style={{ flex: 1 }}>
+            {/* GHL heads-up — messages from people NOT in the pipeline (only if GHL connected) */}
+            {brief.ghlConnected && brief.ghlHeadsUp.length > 0 && (
+              <div>
+                <SectionHead>⚠️ New in GoHighLevel — not in your pipeline</SectionHead>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {brief.ghlHeadsUp.map((h, i) => (
+                    <div key={i} style={{ padding: '11px 14px', borderRadius: 10, background: 'rgba(245,158,11,.08)', border: '1px solid rgba(245,158,11,.25)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                        <span style={{ fontWeight: 600, fontSize: 14, textDecoration: checked.has(i) ? 'line-through' : 'none' }}>
-                          {todo.task}
-                        </span>
-                        {todo.lead && (
-                          <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 999,
-                            background: 'var(--accent-soft)', color: 'var(--accent-label)', fontWeight: 600 }}>
-                            {todo.lead}
-                          </span>
-                        )}
+                        <span style={{ fontWeight: 700, fontSize: 14 }}>{h.name}</span>
+                        {h.unread && <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 999, background: '#ef4444', color: '#fff' }}>UNREAD</span>}
                       </div>
-                      <div style={{ fontSize: 12, color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                        {todo.time && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginRight: 4 }}><Icon name="clock" size={12} />{todo.time}</span>}
-                        {todo.reason}
+                      <div style={{ fontSize: 13, color: 'var(--muted)' }}>&ldquo;{h.message}&rdquo;</div>
+                      <div style={{ fontSize: 11, color: 'var(--accent-label)', marginTop: 4 }}>Review in GoHighLevel — add to your pipeline if it&rsquo;s a real lead.</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* GHL replies from your leads (only if GHL connected) */}
+            {brief.ghlConnected && brief.ghlReplies.length > 0 && (
+              <div>
+                <SectionHead>💬 Replies from your leads (GoHighLevel)</SectionHead>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {brief.ghlReplies.map((r, i) => (
+                    <div key={i} style={{ padding: '11px 14px', borderRadius: 10, background: 'rgba(16,185,129,.07)', border: '1px solid rgba(16,185,129,.22)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                        <span style={{ fontWeight: 700, fontSize: 14 }}>{r.lead}</span>
+                        {r.unread && <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 999, background: '#ef4444', color: '#fff' }}>UNREAD</span>}
+                      </div>
+                      <div style={{ fontSize: 13, color: 'var(--muted)' }}>&ldquo;{r.message}&rdquo;</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Top priority leads (by AI score) */}
+            {brief.priorityLeads.length > 0 && (
+              <div>
+                <SectionHead>🔥 Top Priority Leads</SectionHead>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {brief.priorityLeads.map(l => (
+                    <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 10, background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                      <div style={{ width: 36, textAlign: 'center', fontWeight: 800, fontSize: 16, color: scoreColor(l.score) }}>{l.score}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14 }}>{l.name}</div>
+                        <div style={{ fontSize: 12, color: 'var(--muted)' }}>{l.stage} · {l.reason}</div>
                       </div>
                     </div>
-                    <span style={{
-                      fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 999,
-                      background: PRIORITY_COLOR[todo.priority] + '20',
-                      color: PRIORITY_COLOR[todo.priority], textTransform: 'uppercase', flexShrink: 0
-                    }}>
-                      {todo.priority}
-                    </span>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
+            )}
+
+            {/* Tasks — overdue + due today */}
+            <div>
+              <SectionHead>✅ Tasks</SectionHead>
+              {brief.tasksOverdue.length === 0 && brief.tasksDueToday.length === 0 ? (
+                <EmptyLine>No tasks due today — add follow-ups from the Tasks tab.</EmptyLine>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {brief.tasksOverdue.map(t => <TaskRow key={t.id} title={t.title} tag={`Overdue · ${t.due}`} color="#ef4444" />)}
+                  {brief.tasksDueToday.map(t => <TaskRow key={t.id} title={t.title} tag="Due today" color="#f59e0b" />)}
+                </div>
+              )}
+            </div>
+
+            {/* Appointments — next 48h */}
+            <div>
+              <SectionHead>📅 Appointments (next 48h)</SectionHead>
+              {brief.appointments.length === 0 ? (
+                <EmptyLine>Nothing booked in the next 48 hours.</EmptyLine>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {brief.appointments.map((a, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 14px', borderRadius: 10, background: 'var(--surface)', border: '1px solid var(--border)', fontSize: 13 }}>
+                      <Icon name="calendar" size={13} color="var(--accent)" />
+                      <span style={{ flex: 1 }}>{a.title}</span>
+                      <span style={{ fontSize: 11, color: 'var(--muted)' }}>{a.when}{a.source === 'ghl' ? ' · GHL' : ''}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Prospecting */}
@@ -275,6 +285,23 @@ export function DailyIntel({ profile, leads, calendar }: Props) {
   );
 }
 
+function SectionHead({ children }: { children: any }) {
+  return <h3 style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: 10 }}>{children}</h3>;
+}
+
+function EmptyLine({ children }: { children: any }) {
+  return <div style={{ fontSize: 13, color: 'var(--muted)', padding: '9px 14px', borderRadius: 8, border: '1px dashed var(--border)', textAlign: 'center' }}>{children}</div>;
+}
+
+function TaskRow({ title, tag, color }: { title: string; tag: string; color: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, background: 'var(--surface)', border: '1px solid var(--border)' }}>
+      <span style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>{title}</span>
+      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: color + '20', color, textTransform: 'uppercase', flexShrink: 0 }}>{tag}</span>
+    </div>
+  );
+}
+
 // ─── EOD Report ──────────────────────────────────────────────────────────────
 
 function EodReport({
@@ -292,7 +319,7 @@ function EodReport({
   const hot          = active.filter(l => l.motivation === 'High');
   const tomorrow     = new Date(Date.now() + 86400000).toDateString();
   const tomorrowEvts = calendar.filter(c => !c.completed_at && new Date(c.event_date).toDateString() === tomorrow);
-  const topTodos     = (brief.todos || []).filter(t => t.priority === 'high').slice(0, 3);
+  const topTodos     = [...(brief.tasksOverdue || []), ...(brief.tasksDueToday || [])].slice(0, 3);
   const copilotName  = profile.copilot_name || 'Pilot';
   const hour         = new Date().getHours();
   const sign         = hour < 17 ? 'afternoon' : 'evening';
@@ -358,12 +385,12 @@ function EodReport({
       {/* Top priorities carry-over */}
       {topTodos.length > 0 && (
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: 6 }}>Carry-Over Priorities</div>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: 6 }}>Carry-Over Tasks</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             {topTodos.map((t, i) => (
               <div key={i} style={{ display: 'flex', gap: 8, padding: '7px 12px', borderRadius: 8, background: 'rgba(239,68,68,.05)', border: '1px solid rgba(239,68,68,.15)', fontSize: 13 }}>
                 <Icon name="target" size={13} color="#ef4444" />
-                <span>{t.task}{t.lead ? ` — ${t.lead}` : ''}</span>
+                <span>{t.title}{t.due ? ` — ${t.due}` : ''}</span>
               </div>
             ))}
           </div>

@@ -3,7 +3,7 @@ import { buildSystemPrompt, buildCoachingPrompt, COPILOT_TOOLS, anthropic, enric
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { notifySlack } from '@/lib/slack';
 import { checkRateLimit, rateLimitResponse, LIMITS } from '@/lib/ratelimit';
-import { textLeadViaGhl, upsertGhlContact, type GhlCreds } from '@/lib/ghl';
+import { textLeadViaGhl, upsertGhlContact, fetchGhlBriefContext, type GhlCreds } from '@/lib/ghl';
 import { clientFromTokens, listRecentEmails, listCalendarEvents, createCalendarEvent } from '@/lib/google';
 
 type GoogleCreds = { accessToken: string; refreshToken: string | null };
@@ -263,6 +263,25 @@ async function executeTool(
       return { result: `Upcoming events (next ${days} days):\n\n${formatted}` };
     } catch (e: any) {
       return { result: `Could not read calendar: ${e?.response?.data?.error?.message || e?.message || 'unknown error'}. The user may need to reconnect Google Calendar in Connectors.` };
+    }
+  }
+
+  if (toolName === 'read_ghl_messages') {
+    if (!ghl) return { result: 'GoHighLevel is not connected. Tell the user to connect it in Connectors to read CRM messages.' };
+    try {
+      const ctx = await fetchGhlBriefContext(ghl);
+      const q = String(input.query || '').toLowerCase().trim();
+      let convos = ctx.conversations;
+      if (q) convos = convos.filter(c =>
+        c.name.toLowerCase().includes(q) || (c.phone || '').includes(q) || c.lastMessage.toLowerCase().includes(q));
+      if (!convos.length) return { result: q ? `No GoHighLevel conversations matching "${input.query}".` : 'No recent GoHighLevel conversations found.' };
+      const formatted = convos.slice(0, 15).map(c => {
+        const dir = c.direction === 'inbound' ? 'they texted' : c.direction === 'outbound' ? 'you texted' : 'message';
+        return `• ${c.name}${c.unread ? ' (UNREAD)' : ''} — ${dir}: "${c.lastMessage.slice(0, 140)}"`;
+      }).join('\n');
+      return { result: `Recent GoHighLevel messages:\n\n${formatted}` };
+    } catch (e: any) {
+      return { result: `Could not read GoHighLevel messages: ${e?.message || 'unknown error'}.` };
     }
   }
 

@@ -125,6 +125,7 @@ export async function createGhlTask(
 export interface GhlBriefContext {
   conversations: {
     name: string;
+    phone: string;
     lastMessage: string;
     direction: 'inbound' | 'outbound' | 'unknown';
     unread: boolean;
@@ -157,6 +158,7 @@ export async function fetchGhlBriefContext(
       const convos: any[] = json.conversations || json.data || [];
       ctx.conversations = convos.map(c => ({
         name: c.contactName || c.fullName || c.name || 'Unknown',
+        phone: c.phone || c.contactPhone || c.phoneNumber || '',
         lastMessage: (c.lastMessageBody || c.lastMessage || '').slice(0, 200),
         direction: (c.lastMessageDirection === 'inbound' || c.lastMessageDirection === 'outbound')
           ? c.lastMessageDirection : 'unknown' as const,

@@ -1,6 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { DealMindUser, Lead, CalendarEvent, ChatMessage } from '@/types';
 import { getRoleAIContext } from '@/lib/roleConfig';
+import { scoreLead } from '@/lib/leadScore';
+import type { GhlBriefContext } from '@/lib/ghl';
 
 const MODEL       = 'claude-sonnet-4-6';          // current Sonnet 4.6
 const HAIKU_MODEL = 'claude-haiku-4-5-20251001';  // current Haiku 4.5
@@ -253,6 +255,17 @@ export const COPILOT_TOOLS: Anthropic.Tool[] = [
       required: [],
     },
   },
+  {
+    name: 'read_ghl_messages',
+    description: 'Read the user\'s recent GoHighLevel (CRM) text/SMS conversations — who messaged, what they said, and read/unread status. Use this when the user asks about a person or message that is NOT in their lead pipeline (e.g. "who is Troy?", "what did the cash buyer say?", "did anyone text me back?"). Requires GoHighLevel connected in Connectors.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        query: { type: 'string', description: 'Optional name or phone fragment to filter conversations by (e.g. "Troy", "341").' },
+      },
+      required: [],
+    },
+  },
 ];
 
 export async function callClaude(
@@ -320,99 +333,140 @@ Rules: SMS messages must be under 160 chars. Use the lead's name. Be specific to
 
 // ─── Daily brief: split Haiku (todos) + Sonnet (personality) ──
 
+const normPhone = (s?: string | null) => (s || '').replace(/\D/g, '').slice(-10);
+
+export interface BriefNarrative {
+  greeting: string;
+  focus: string;
+  insight: string;
+  prospecting: { action: string; detail: string }[];
+}
+
 export async function buildDailyBriefSplit(
   profile: DealMindUser,
   leads: Lead[],
   calendar: CalendarEvent[],
-  ghlContext?: {
-    conversations: { name: string; lastMessage: string; direction: string; unread: boolean }[];
-    appointments: { title: string; startTime: string; contactName?: string }[];
-  } | null,
-  tasks: CalendarEvent[] = []
+  ghlContext?: GhlBriefContext | null,
+  tasks: CalendarEvent[] = [],
+  cachedNarrative?: BriefNarrative | null,
 ): Promise<any> {
-  const active    = leads.filter(l => !l.is_dead);
-  const urgent    = active.filter(l => l.last_contact >= 7);
-  const hot       = active.filter(l => l.motivation === 'High');
-  const noContact = active.filter(l => l.last_contact >= 14);
-  const now       = new Date();
-  const hour      = now.getHours();
-  const timeOfDay = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
-  const dateStr   = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const active     = leads.filter(l => !l.is_dead);
+  const now        = new Date();
+  const hour       = now.getHours();
+  const timeOfDay  = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
+  const todayStr   = now.toDateString();
+  const startOfDay = new Date(now); startOfDay.setHours(0, 0, 0, 0);
+  const in48h      = new Date(now.getTime() + 48 * 3600 * 1000);
 
-  const context = `
-AGENT: ${profile.user_name || 'Agent'} | ${profile.role || 'investor'} | ${profile.city || 'unknown'}
-TIME: ${timeOfDay} on ${dateStr}
-LEADS (${active.length} active):
-${active.slice(0, 50).map(l => `• ${l.name} | ${l.stage} | ${l.motivation} motivation | ${l.last_contact}d no contact${l.notes ? ' | ' + l.notes.slice(0, 60) : ''}`).join('\n') || 'NONE'}
-GOING COLD (7+ days): ${urgent.map(l => l.name).join(', ') || 'none'}
-DEAD COLD (14+ days): ${noContact.map(l => l.name).join(', ') || 'none'}
-HOT LEADS: ${hot.map(l => l.name).join(', ') || 'none'}
-CALENDAR TODAY: ${calendar.length === 0 ? 'nothing scheduled' : calendar.map(c => c.title).join(', ')}
-OPEN TASKS (${tasks.length}): ${tasks.length === 0 ? 'none' : tasks.slice(0, 30).map(t => `${t.title}${t.event_date ? ` (due ${new Date(t.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})` : ''}`).join('; ')}`;
+  // ── Top priority leads — deterministic, top 10 by AI score ──
+  const priorityLeads = [...active]
+    .map(l => {
+      const reasons: string[] = [];
+      if (l.motivation === 'High')               reasons.push('high motivation');
+      if (l.last_contact === 0)                  reasons.push('contacted today');
+      else if (l.last_contact >= 7)              reasons.push(`${l.last_contact}d no contact`);
+      if (l.ai_enrichment?.urgency === 'high')   reasons.push('AI: urgent');
+      return {
+        id: l.id, name: l.name, score: scoreLead(l), stage: l.stage,
+        reason: reasons.join(' · ') || l.stage,
+      };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 10);
 
-  // GHL CRM activity — who replied, who's quiet, what's booked (if connected)
-  const ghlBlock = ghlContext && (ghlContext.conversations.length || ghlContext.appointments.length)
-    ? `
-CRM ACTIVITY (from GoHighLevel):
-RECENT REPLIES (leads who messaged back — these are HOT, prioritize them):
-${ghlContext.conversations.filter(c => c.direction === 'inbound').slice(0, 10)
-        .map(c => `• ${c.name}${c.unread ? ' (UNREAD)' : ''}: "${c.lastMessage.slice(0, 100)}"`).join('\n') || 'none'}
-AWAITING THEIR REPLY (you messaged last, no response yet):
-${ghlContext.conversations.filter(c => c.direction === 'outbound').slice(0, 8)
-        .map(c => `• ${c.name}: you said "${c.lastMessage.slice(0, 80)}"`).join('\n') || 'none'}
-BOOKED APPOINTMENTS (next 48h):
-${ghlContext.appointments.slice(0, 10)
-        .map(a => `• ${a.title}${a.contactName ? ` with ${a.contactName}` : ''} — ${a.startTime}`).join('\n') || 'none'}`
-    : '';
+  // ── Tasks — deterministic (due today vs overdue) ──
+  const fmtTask = (t: CalendarEvent) => ({
+    id: t.id, title: t.title,
+    due: t.event_date ? new Date(t.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '',
+  });
+  const openTasks     = tasks.filter(t => !t.completed_at);
+  const tasksDueToday = openTasks.filter(t => t.event_date && new Date(t.event_date).toDateString() === todayStr).map(fmtTask);
+  const tasksOverdue  = openTasks.filter(t => t.event_date && new Date(t.event_date) < startOfDay).map(fmtTask);
 
-  // ── Haiku: generate structured todos + prospecting (cheap) ──
-  const todosPrompt = `${context}${ghlBlock}
+  // ── Appointments — in-app events (next 48h) + GHL booked ──
+  const appointments: { title: string; when: string; source: 'app' | 'ghl' }[] = calendar
+    .filter(c => (c as any).event_type !== 'task' && !c.completed_at && c.event_date
+      && new Date(c.event_date) >= startOfDay && new Date(c.event_date) <= in48h)
+    .map(c => ({
+      title: c.title,
+      when: new Date(c.event_date).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' }),
+      source: 'app' as const,
+    }));
 
-Generate a prioritized action list for this real estate agent. Return ONLY valid JSON:
-{
-  "todos": [
-    { "priority": "high|medium|low", "time": "9:00 AM", "task": "specific action", "reason": "why now", "lead": "lead name or null" }
-  ],
-  "prospecting": [
-    { "action": "specific activity", "detail": "how to do it" }
-  ]
-}
-Rules: 5-7 todos sorted by priority. Use real lead names. 2-3 prospecting items. Times realistic for ${timeOfDay}.${ghlBlock ? ' Leads who REPLIED (especially UNREAD) are the hottest — make calling/texting them back the top todos. Add a todo for each booked appointment.' : ''} Return ONLY JSON.`;
+  // ── GHL inbox — ONLY when GHL is connected (otherwise omitted entirely) ──
+  const ghlReplies: { name: string; lead: string; message: string; unread: boolean }[] = [];
+  const ghlHeadsUp: { name: string; message: string; unread: boolean }[] = [];
+  if (ghlContext) {
+    for (const c of ghlContext.conversations.filter(c => c.direction === 'inbound')) {
+      const cp = normPhone(c.phone);
+      const n  = c.name.toLowerCase().trim();
+      const lead = (cp ? active.find(l => normPhone(l.phone) === cp) : undefined)
+        || (n && n !== 'unknown'
+          ? active.find(l => l.name && (l.name.toLowerCase().includes(n) || n.includes(l.name.toLowerCase())))
+          : undefined);
+      if (lead) ghlReplies.push({ name: c.name, lead: lead.name, message: c.lastMessage, unread: c.unread });
+      else      ghlHeadsUp.push({ name: c.name, message: c.lastMessage, unread: c.unread });
+    }
+    for (const a of ghlContext.appointments.slice(0, 10)) {
+      appointments.push({ title: `${a.title}${a.contactName ? ` — ${a.contactName}` : ''}`, when: a.startTime, source: 'ghl' });
+    }
+  }
 
-  // ── Sonnet: generate personality-driven greeting + insight ──
+  // ── Narrative (LLM, Haiku) — greeting/focus/insight/prospecting; cached per day ──
   const copilotName = profile.copilot_name || 'Pilot';
-  const insightPrompt = `You are ${copilotName}, an elite real estate AI copilot.
-${context}${ghlBlock}
+  let narrative: BriefNarrative | null = cachedNarrative ?? null;
+
+  if (!narrative) {
+    const ghlSummary = ghlContext ? `
+GHL REPLIES FROM YOUR LEADS: ${ghlReplies.length === 0 ? 'none' : ghlReplies.map(r => `${r.lead}${r.unread ? ' (UNREAD)' : ''}: "${r.message.slice(0, 80)}"`).join(' | ')}
+GHL MESSAGES NOT IN PIPELINE (heads-up only — do NOT treat as leads): ${ghlHeadsUp.length === 0 ? 'none' : ghlHeadsUp.map(h => `${h.name}${h.unread ? ' (UNREAD)' : ''}: "${h.message.slice(0, 80)}"`).join(' | ')}` : '';
+
+    const prompt = `You are ${copilotName}, an elite real estate AI copilot writing today's brief for ${profile.user_name || 'the agent'} (${profile.role || 'investor'}${profile.city ? `, ${profile.city}` : ''}). It is ${timeOfDay}.
+
+PIPELINE: ${active.length} active leads.
+TOP PRIORITY LEADS: ${priorityLeads.slice(0, 6).map(p => `${p.name} (score ${p.score}, ${p.stage}, ${p.reason})`).join(' | ') || 'none'}
+TASKS DUE TODAY: ${tasksDueToday.length} | OVERDUE: ${tasksOverdue.length}${tasksOverdue.length ? ` (${tasksOverdue.map(t => t.title).slice(0, 4).join(', ')})` : ''}
+APPOINTMENTS (next 48h): ${appointments.length}${appointments.length ? ` (${appointments.map(a => a.title).slice(0, 4).join(', ')})` : ''}${ghlSummary}
 
 Return ONLY valid JSON:
 {
-  "greeting": "one energetic sentence greeting ${profile.user_name || 'them'} and setting the tone",
-  "focus": "one sentence on the single #1 priority today${ghlBlock ? ' — if a lead replied or there is an appointment booked, that is the priority' : ''}",
-  "insight": "one sharp tactical insight about their pipeline or positioning${ghlBlock ? ', referencing who replied or what is booked' : ''}"
+  "greeting": "one energetic sentence greeting ${profile.user_name || 'them'} by name and setting today's tone",
+  "focus": "one sentence naming the single #1 priority today, chosen from the data above${ghlContext ? ' — an UNREAD GHL reply or a booked appointment outranks everything' : ''}",
+  "insight": "one sharp tactical insight referencing real names/numbers above",
+  "prospecting": [ { "action": "specific lead-gen activity", "detail": "how to do it" } ]
 }
-Return ONLY JSON.`;
+Rules: 2-3 prospecting items, use real lead names. Return ONLY JSON.`;
 
-  // Run both in parallel — both on Haiku; the brief is structured JSON, not prose,
-  // so Sonnet was ~20x overkill for the 3-field greeting/insight.
-  const [todosRaw, insightRaw] = await Promise.all([
-    callHaiku(todosPrompt, 700),
-    callHaiku(insightPrompt, 300),
-  ]);
+    const raw = await callHaiku(prompt, 600);
+    try {
+      narrative = JSON.parse(raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim());
+    } catch { narrative = null; }
+  }
 
-  let parsedTodos: any = { todos: [], prospecting: [] };
-  let parsedInsight: any = {
-    greeting: `Good ${timeOfDay}! Let's get to work.`,
-    focus: 'Review your pipeline and follow up with any cold leads.',
-    insight: 'Consistent outreach beats perfect timing every time.',
+  if (!narrative) {
+    narrative = {
+      greeting: `Good ${timeOfDay}${profile.user_name ? `, ${profile.user_name.split(' ')[0]}` : ''}! Let's make today count.`,
+      focus: tasksOverdue.length
+        ? `Clear your ${tasksOverdue.length} overdue task${tasksOverdue.length > 1 ? 's' : ''} first.`
+        : priorityLeads[0]
+          ? `Follow up with ${priorityLeads[0].name} — your hottest lead right now.`
+          : 'Review your pipeline and reach out to a cold lead.',
+      insight: 'Consistent outreach beats perfect timing every time.',
+      prospecting: [],
+    };
+  }
+
+  return {
+    greeting: narrative.greeting,
+    focus: narrative.focus,
+    insight: narrative.insight,
+    prospecting: narrative.prospecting || [],
+    priorityLeads,
+    tasksDueToday,
+    tasksOverdue,
+    appointments,
+    ghlReplies,
+    ghlHeadsUp,
+    ghlConnected: !!ghlContext,
   };
-
-  try {
-    parsedTodos = JSON.parse(todosRaw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim());
-  } catch { /* keep fallback */ }
-
-  try {
-    parsedInsight = JSON.parse(insightRaw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim());
-  } catch { /* keep fallback */ }
-
-  return { ...parsedInsight, ...parsedTodos };
 }
