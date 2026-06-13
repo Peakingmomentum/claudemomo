@@ -89,29 +89,6 @@ const CONNECTORS: Connector[] = [
     docsUrl: 'https://help.gohighlevel.com/support/solutions/articles/155000003054-private-integrations',
     badge: 'Agent can text & remind',
   },
-  {
-    id: 'slack', name: 'Slack', category: 'automation',
-    description: 'Post lead updates to your team channel — new leads, stage changes, contact logs, and dead deals. Your whole team stays in sync without leaving Slack.',
-    logoInitial: 'Sl', logoColor: '#4A154B',
-    type: 'webhook', field: 'slack_webhook_url',
-    docsUrl: 'https://api.slack.com/messaging/webhooks',
-    badge: 'Team Notifications',
-  },
-  {
-    id: 'zapier', name: 'Zapier', category: 'automation',
-    description: 'Trigger Zaps when leads are added, updated, or go cold.',
-    logoInitial: 'Z', logoColor: '#FF4A00',
-    type: 'webhook', field: 'zapier_webhook_url',
-    docsUrl: 'https://zapier.com/apps/webhooks',
-  },
-  {
-    id: 'hotleads', name: 'Hot Leads Generator', category: 'automation',
-    description: 'AI-powered motivated seller finder — pulls absentee, pre-foreclosure, and distressed property lists, scores them, and feeds the highest-probability leads directly into your pipeline. A standalone app for serious acquisition teams.',
-    logoInitial: 'HL', logoColor: '#ef4444',
-    type: 'coming_soon',
-    featured: true, upsellUrl: 'https://pocketpilot.app/hot-leads',
-    badge: 'Standalone Add-On',
-  },
 
   // AI Meeting Notes
   {
