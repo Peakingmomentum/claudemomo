@@ -75,8 +75,11 @@ export default function SignInClient() {
       else setOk('Magic link sent — check your inbox.');
 
     } else if (mode === 'reset') {
+      // Always use the canonical custom domain (never a protected *.vercel.app)
+      // and a clean path with no query string so it matches the redirect allow list.
+      const base = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/callback?redirect=/auth/reset`
+        redirectTo: `${base}/auth/reset`
       });
       if (error) setErr(error.message);
       else setOk('Password reset email sent — check your inbox. Open the link to set a new password.');
