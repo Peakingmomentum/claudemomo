@@ -59,9 +59,13 @@ ${openTasks.map(t => `• ${t.title}${t.event_date ? ` — due ${new Date(t.even
 
 CALENDAR:
 ${events.map(c => `• ${c.title} — ${c.event_date}`).join('\n') || '(no events)'}
-${wins && (wins.completedTasks.length || wins.appointments.length) ? `
+${wins && (wins.completedTasks.length || wins.appointments.length || wins.stageMoves.length) ? `
 YESTERDAY'S WINS (completed):
-${wins.completedTasks.map(t => `• ✅ ${t}`).join('\n')}${wins.appointments.length ? `${wins.completedTasks.length ? '\n' : ''}${wins.appointments.map(a => `• 📅 ${a} (appointment)`).join('\n')}` : ''}
+${[
+  ...wins.completedTasks.map(t => `• ✅ ${t}`),
+  ...wins.appointments.map(a => `• 📅 ${a} (appointment)`),
+  ...wins.stageMoves.map(s => `• 📈 Stage moved: ${s}`),
+].join('\n')}
 ` : ''}
 URGENT (7+ days no contact): ${urgent.map(l => l.name).join(', ') || 'none'}
 HOT LEADS: ${hot.map(l => l.name).join(', ') || 'none'}
@@ -491,6 +495,6 @@ Rules: 2-3 prospecting items, use real lead names. Return ONLY JSON.`;
     ghlReplies,
     ghlHeadsUp,
     ghlConnected: !!ghlContext,
-    wins: wins || { completedTasks: [], appointments: [] },
+    wins: wins || { completedTasks: [], appointments: [], stageMoves: [] },
   };
 }

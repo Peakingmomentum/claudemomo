@@ -130,6 +130,13 @@ async function executeTool(
     const { data: updated, error } = await supabase.from('leads').update(patch).eq('id', lead.id).select().single();
     if (error) return { result: `Error updating lead: ${error.message}` };
 
+    // Record stage transitions so the brief can report progress.
+    if (patch.stage && lead.stage !== patch.stage) {
+      await supabase.from('lead_stage_changes').insert({
+        user_id: userId, lead_id: lead.id, from_stage: lead.stage, to_stage: patch.stage,
+      });
+    }
+
     // Slack — only ping for meaningful stage/motivation changes
     if (slackWebhook && (patch.stage || patch.motivation)) {
       const changes = Object.entries(patch)

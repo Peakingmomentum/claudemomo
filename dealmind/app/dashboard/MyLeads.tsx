@@ -81,6 +81,14 @@ export function MyLeads({ profile, leads, setLeads, calendar, focusLeadId, onFoc
   const isMobile = useMobile();
   // Role-specific pipeline stages (falls back to wholesaler stages if no role set yet)
   const STAGES = getStages(profile.user_role ?? 'wholesaler');
+  const [viewMode, setViewMode] = useState<'list' | 'board'>(() => {
+    if (typeof window === 'undefined') return 'list';
+    try { return (localStorage.getItem(`pp-view-${profile.id}`) as 'list' | 'board') || 'list'; } catch { return 'list'; }
+  });
+  function changeView(v: 'list' | 'board') {
+    setViewMode(v);
+    try { localStorage.setItem(`pp-view-${profile.id}`, v); } catch { /* ignore */ }
+  }
   const [sortBy, setSortBy] = useState<SortMode>('score');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
@@ -111,9 +119,16 @@ export function MyLeads({ profile, leads, setLeads, calendar, focusLeadId, onFoc
   }
 
   async function updateLead(id: string, patch: Partial<Lead>) {
+    const prev = leads.find(l => l.id === id);
     const { data, error } = await supabase.from('leads').update(patch).eq('id', id).select().single();
     if (!error && data) {
       setLeads(l => l.map(x => x.id === id ? (data as Lead) : x));
+      // Record stage transitions so the brief can report progress.
+      if (patch.stage && prev && prev.stage !== patch.stage) {
+        supabase.from('lead_stage_changes').insert({
+          user_id: profile.id, lead_id: id, from_stage: prev.stage, to_stage: patch.stage,
+        }).then(() => {}, () => {});
+      }
     }
   }
 
@@ -145,7 +160,19 @@ export function MyLeads({ profile, leads, setLeads, calendar, focusLeadId, onFoc
             </div>
           )}
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ display: 'flex', background: 'var(--surface)', borderRadius: 8, padding: 2, border: '1px solid var(--border)' }}>
+            {(['list', 'board'] as const).map(v => (
+              <button key={v} onClick={() => changeView(v)} style={{
+                padding: '6px 12px', border: 'none', borderRadius: 6, cursor: 'pointer',
+                fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+                background: viewMode === v ? 'var(--accent)' : 'transparent',
+                color: viewMode === v ? '#fff' : 'var(--muted)',
+              }}>
+                {v === 'list' ? 'List' : 'Board'}
+              </button>
+            ))}
+          </div>
           <button className="btn" onClick={() => setAdding(a => !a)}>
             <Icon name="plus" /> Add lead
           </button>
@@ -206,26 +233,70 @@ export function MyLeads({ profile, leads, setLeads, calendar, focusLeadId, onFoc
         </div>
       )}
 
-      {sorted.map(l => (
-        <LeadCard
-          key={l.id}
-          lead={l}
-          stages={STAGES}
-          score={sortBy === 'score' ? scoreLead(l) : undefined}
-          calendarEvents={calendar.filter(e => e.lead_id === l.id)}
-          onUpdate={patch => updateLead(l.id, patch)}
-          onDelete={() => deleteLead(l.id)}
-          isMobile={isMobile}
-          focusLead={l.id === focusLeadId}
-          onFocused={onFocusCleared}
-        />
-      ))}
+      {viewMode === 'board' ? (
+        <BoardView leads={sorted} stages={STAGES} onMove={(id, stage) => updateLead(id, { stage })} isMobile={isMobile} />
+      ) : (
+        sorted.map(l => (
+          <LeadCard
+            key={l.id}
+            lead={l}
+            stages={STAGES}
+            score={sortBy === 'score' ? scoreLead(l) : undefined}
+            calendarEvents={calendar.filter(e => e.lead_id === l.id)}
+            onUpdate={patch => updateLead(l.id, patch)}
+            onDelete={() => deleteLead(l.id)}
+            isMobile={isMobile}
+            focusLead={l.id === focusLeadId}
+            onFocused={onFocusCleared}
+          />
+        ))
+      )}
 
       {active.length === 0 && !adding && (
         <div className="card" style={{ textAlign: 'center', color: 'var(--muted)' }}>
           No leads yet. Click "Add lead" to start.
         </div>
       )}
+    </div>
+  );
+}
+
+const STAGE_COLOR: Record<string, string> = {
+  'New Lead': '#94a3b8', 'Cold Lead': '#4a90d9', 'Warm Lead': '#f59e0b', 'Hot Lead': '#ef4444', 'Closed': '#10b981',
+};
+
+function BoardView({ leads, stages, onMove, isMobile }: {
+  leads: Lead[]; stages: string[]; onMove: (id: string, stage: string) => void; isMobile: boolean;
+}) {
+  return (
+    <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8, alignItems: 'flex-start' }}>
+      {stages.map(stage => {
+        const col = leads.filter(l => l.stage === stage);
+        const color = STAGE_COLOR[stage] || 'var(--accent)';
+        return (
+          <div key={stage} style={{ minWidth: isMobile ? 230 : 250, flex: isMobile ? '0 0 auto' : '1 1 0', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 2px', borderBottom: `2px solid ${color}` }}>
+              <span style={{ fontWeight: 700, fontSize: 13 }}>{stage}</span>
+              <span style={{ fontSize: 11, color, background: color + '20', borderRadius: 999, padding: '1px 8px', fontWeight: 700 }}>{col.length}</span>
+            </div>
+            {col.length === 0 ? (
+              <div style={{ fontSize: 12, color: 'var(--muted)', padding: '14px 12px', textAlign: 'center', border: '1px dashed var(--border)', borderRadius: 10 }}>—</div>
+            ) : col.map(l => (
+              <div key={l.id} style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--surface)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>{l.name}</div>
+                {l.property && <div style={{ fontSize: 11, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.property}</div>}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span title="Lead score" style={{ fontSize: 11, fontWeight: 800, color }}>{scoreLead(l)}</span>
+                  <select value={l.stage} onChange={e => onMove(l.id, e.target.value)} aria-label={`Move ${l.name} to a stage`}
+                    style={{ flex: 1, fontSize: 12, padding: '4px 6px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg, #fff)', color: 'var(--text)', cursor: 'pointer' }}>
+                    {stages.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      })}
     </div>
   );
 }

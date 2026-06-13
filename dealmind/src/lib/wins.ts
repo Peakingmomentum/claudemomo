@@ -5,6 +5,7 @@
 export interface YesterdayWins {
   completedTasks: string[];
   appointments: string[];
+  stageMoves: string[];
 }
 
 export async function fetchYesterdayWins(supabase: any, userId: string): Promise<YesterdayWins> {
@@ -12,7 +13,7 @@ export async function fetchYesterdayWins(supabase: any, userId: string): Promise
   startToday.setHours(0, 0, 0, 0);
   const startYesterday = new Date(startToday.getTime() - 86400000);
 
-  const [{ data: tasks }, { data: events }] = await Promise.all([
+  const [{ data: tasks }, { data: events }, { data: moves }] = await Promise.all([
     // Tasks checked off yesterday.
     supabase.from('calendar_events').select('title')
       .eq('user_id', userId).eq('event_type', 'task')
@@ -23,6 +24,12 @@ export async function fetchYesterdayWins(supabase: any, userId: string): Promise
       .eq('user_id', userId)
       .gte('event_date', startYesterday.toISOString())
       .lt('event_date', startToday.toISOString()),
+    // Lead stage changes yesterday (progress signal).
+    supabase.from('lead_stage_changes').select('to_stage, leads(name)')
+      .eq('user_id', userId)
+      .gte('changed_at', startYesterday.toISOString())
+      .lt('changed_at', startToday.toISOString())
+      .order('changed_at'),
   ]);
 
   return {
@@ -30,5 +37,7 @@ export async function fetchYesterdayWins(supabase: any, userId: string): Promise
     appointments: (events || [])
       .filter((e: any) => e.event_type !== 'task')
       .map((e: any) => e.title).filter(Boolean),
+    stageMoves: (moves || []).slice(0, 10)
+      .map((m: any) => `${(Array.isArray(m.leads) ? m.leads[0]?.name : m.leads?.name) || 'A lead'} → ${m.to_stage}`),
   };
 }

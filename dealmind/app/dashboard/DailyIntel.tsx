@@ -23,7 +23,7 @@ interface Brief {
   ghlReplies: GhlReply[];
   ghlHeadsUp: GhlHeadsUp[];
   ghlConnected: boolean;
-  wins: { completedTasks: string[]; appointments: string[] };
+  wins: { completedTasks: string[]; appointments: string[]; stageMoves: string[] };
 }
 
 const scoreColor = (s: number) => s >= 70 ? '#ef4444' : s >= 45 ? '#f59e0b' : '#4a90d9';
@@ -130,7 +130,7 @@ export function DailyIntel({ profile, leads, calendar, onStartCheckin }: Props) 
             </div>
 
             {/* Yesterday's wins */}
-            {(brief.wins.completedTasks.length > 0 || brief.wins.appointments.length > 0) && (
+            {(brief.wins.completedTasks.length > 0 || brief.wins.appointments.length > 0 || brief.wins.stageMoves.length > 0) && (
               <div style={{ padding: '12px 16px', borderRadius: 10, background: 'rgba(16,185,129,.07)', border: '1px solid rgba(16,185,129,.22)' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#10b981', marginBottom: 8 }}>
                   🏆 Yesterday&rsquo;s Wins
@@ -141,6 +141,9 @@ export function DailyIntel({ profile, leads, calendar, onStartCheckin }: Props) 
                   ))}
                   {brief.wins.appointments.map((a, i) => (
                     <span key={`a${i}`} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 999, background: 'rgba(74,144,217,.12)', color: 'var(--accent-label)', fontWeight: 600 }}>📅 {a}</span>
+                  ))}
+                  {brief.wins.stageMoves.map((s, i) => (
+                    <span key={`s${i}`} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 999, background: 'rgba(245,158,11,.14)', color: '#f59e0b', fontWeight: 600 }}>📈 {s}</span>
                   ))}
                 </div>
               </div>

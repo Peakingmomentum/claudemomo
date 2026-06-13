@@ -10,11 +10,10 @@ export function scoreLead(lead: Lead): number {
   // Motivation (0–40)
   raw += ({ High: 40, Medium: 25, Low: 10, Unknown: 5 } as Record<string, number>)[lead.motivation] ?? 5;
 
-  // Stage (0–35) — closer to close = more valuable
+  // Stage (0–35) — hotter temperature = more valuable (Closed already won)
   raw += ({
-    Negotiating: 35, 'Under Contract': 30, Contacted: 20,
-    Nurturing: 15, 'New Lead': 10, Closed: 0, Dead: 0,
-  } as Record<string, number>)[lead.stage] ?? 5;
+    'Hot Lead': 35, 'Warm Lead': 24, 'New Lead': 14, 'Cold Lead': 6, Closed: 0,
+  } as Record<string, number>)[lead.stage] ?? 10;
 
   // Recency of last contact (0–25) — fresh contact = higher score
   if      (lead.last_contact === 0)  raw += 25;

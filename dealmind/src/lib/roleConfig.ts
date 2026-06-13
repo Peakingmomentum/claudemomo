@@ -20,9 +20,13 @@ export const ROLE_STAGES: Record<UserRole, string[]> = {
 
 export const DEFAULT_STAGES = ['New Lead', 'Contacted', 'Nurturing', 'Negotiating', 'Under Contract', 'Closed', 'Dead'];
 
-export function getStages(role?: UserRole | null): string[] {
-  if (!role || !ROLE_STAGES[role]) return DEFAULT_STAGES;
-  return ROLE_STAGES[role];
+// Universal temperature funnel — the pilot light to fire metaphor (WarmFollow):
+// New → Cold → Warm → Hot → Closed. Used by both the List and Board views.
+// (ROLE_STAGES above is kept for reference; the pipeline is now universal.)
+export const PIPELINE_STAGES = ['New Lead', 'Cold Lead', 'Warm Lead', 'Hot Lead', 'Closed'];
+
+export function getStages(_role?: UserRole | null): string[] {
+  return PIPELINE_STAGES;
 }
 
 // ─── Role Display Names ───────────────────────────────────────────────────────
