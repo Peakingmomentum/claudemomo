@@ -85,6 +85,20 @@ export default function DashboardClient({ profile: initialProfile, initialLeads,
   const [focusLeadId, setFocusLeadId] = useState<string | null>(null);
   const [showMore, setShowMore] = useState(false);
   const [checkinSeed, setCheckinSeed] = useState<string | null>(null);
+  const CHECKIN_PROMPT = "Let's do my morning check-in. Celebrate yesterday's wins, then walk me through my open and overdue tasks one at a time — ask what happened with each and log the updates (notes, completed tasks, new follow-ups, appointments) as we go.";
+
+  // Automatic kick-off: once per day, on desktop, Pilot starts the check-in itself.
+  // (Mobile is left to the button so we don't yank the user into the chat on load.)
+  useEffect(() => {
+    if (isMobile) return;
+    try {
+      const key = `pp-checkin-${profile.id}-${new Date().toISOString().slice(0, 10)}`;
+      if (localStorage.getItem(key)) return;
+      localStorage.setItem(key, '1');
+      setCheckinSeed(CHECKIN_PROMPT);
+    } catch { /* storage unavailable — skip auto kick-off */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const supabase = createSupabaseBrowserClient();
   const copilotName = profile.copilot_name || 'Pilot';
