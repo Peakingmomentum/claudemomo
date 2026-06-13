@@ -3,6 +3,7 @@ import type { DealMindUser, Lead, CalendarEvent, ChatMessage } from '@/types';
 import { getRoleAIContext } from '@/lib/roleConfig';
 import { scoreLead } from '@/lib/leadScore';
 import type { GhlBriefContext } from '@/lib/ghl';
+import type { YesterdayWins } from '@/lib/wins';
 
 const MODEL       = 'claude-sonnet-4-6';          // current Sonnet 4.6
 const HAIKU_MODEL = 'claude-haiku-4-5-20251001';  // current Haiku 4.5
@@ -15,7 +16,8 @@ export function buildSystemPrompt(
   user: DealMindUser,
   leads: Lead[],
   calendar: CalendarEvent[],
-  tz?: string
+  tz?: string,
+  wins?: YesterdayWins | null
 ): string {
   const urgent = leads.filter(l => !l.is_dead && l.last_contact >= 7);
   const hot    = leads.filter(l => !l.is_dead && l.motivation === 'High');
@@ -57,7 +59,10 @@ ${openTasks.map(t => `• ${t.title}${t.event_date ? ` — due ${new Date(t.even
 
 CALENDAR:
 ${events.map(c => `• ${c.title} — ${c.event_date}`).join('\n') || '(no events)'}
-
+${wins && (wins.completedTasks.length || wins.appointments.length) ? `
+YESTERDAY'S WINS (completed):
+${wins.completedTasks.map(t => `• ✅ ${t}`).join('\n')}${wins.appointments.length ? `${wins.completedTasks.length ? '\n' : ''}${wins.appointments.map(a => `• 📅 ${a} (appointment)`).join('\n')}` : ''}
+` : ''}
 URGENT (7+ days no contact): ${urgent.map(l => l.name).join(', ') || 'none'}
 HOT LEADS: ${hot.map(l => l.name).join(', ') || 'none'}
 
@@ -82,7 +87,13 @@ A. NEVER send a text without explicit approval. First call text_lead WITHOUT con
 B. NEVER write [Your Name], [Your Company], {{name}}, or any placeholder/bracket. Always fill in the real sender name and company from the SIGNATURE section above. The system will hard-block and refuse to send any message containing brackets or placeholders.
 C. If the SIGNATURE name or company is "(not set)", ask the user for it once, tell them to save it in Settings so it auto-fills next time, and use what they give you — never fall back to a placeholder.
 D. Before showing any draft, re-read it: if it contains a bracket or the words "your name"/"your company", fix it before showing the user. A client must never receive a templated, unfinished message.
-E. Adding a lead with a phone/email that already exists will NOT create a duplicate — the system reuses the existing lead. Don't try to add the same person twice.`;
+E. Adding a lead with a phone/email that already exists will NOT create a duplicate — the system reuses the existing lead. Don't try to add the same person twice.
+
+MORNING CHECK-IN PROTOCOL (when the user starts a check-in/standup, or asks to review their day):
+- Open by briefly celebrating YESTERDAY'S WINS above, by name, if there are any.
+- Then walk through their OPEN TASKS ONE AT A TIME (overdue first). For each, ask what happened — did they do it? what's the update?
+- Based on their answer, ACT immediately with your tools: log_contact or update_lead to save the note to the lead, complete_task to check off a finished task, create_task for a new follow-up, add_calendar_event to schedule an appointment. Confirm each action in one short line, then move to the NEXT task.
+- Keep it brisk and encouraging — one task at a time, never dump everything at once. Texting a lead still follows the OUTREACH PROTOCOL above (draft first, then send only on approval).`;
 }
 
 export function buildCoachingPrompt(user: DealMindUser): string {
@@ -266,6 +277,17 @@ export const COPILOT_TOOLS: Anthropic.Tool[] = [
       required: [],
     },
   },
+  {
+    name: 'complete_task',
+    description: 'Mark one of the user\'s open tasks as done. Use during a morning check-in, or whenever the user says they finished/completed/handled a task. Match by the task title (or part of it).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        task: { type: 'string', description: 'The title (or part of it) of the open task to mark complete.' },
+      },
+      required: ['task'],
+    },
+  },
 ];
 
 export async function callClaude(
@@ -349,6 +371,7 @@ export async function buildDailyBriefSplit(
   ghlContext?: GhlBriefContext | null,
   tasks: CalendarEvent[] = [],
   cachedNarrative?: BriefNarrative | null,
+  wins?: YesterdayWins | null,
 ): Promise<any> {
   const active     = leads.filter(l => !l.is_dead);
   const now        = new Date();
@@ -468,5 +491,6 @@ Rules: 2-3 prospecting items, use real lead names. Return ONLY JSON.`;
     ghlReplies,
     ghlHeadsUp,
     ghlConnected: !!ghlContext,
+    wins: wins || { completedTasks: [], appointments: [] },
   };
 }

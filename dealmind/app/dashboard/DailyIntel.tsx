@@ -23,13 +23,14 @@ interface Brief {
   ghlReplies: GhlReply[];
   ghlHeadsUp: GhlHeadsUp[];
   ghlConnected: boolean;
+  wins: { completedTasks: string[]; appointments: string[] };
 }
 
 const scoreColor = (s: number) => s >= 70 ? '#ef4444' : s >= 45 ? '#f59e0b' : '#4a90d9';
 
-interface Props { profile: DealMindUser; leads: Lead[]; calendar: CalendarEvent[]; }
+interface Props { profile: DealMindUser; leads: Lead[]; calendar: CalendarEvent[]; onStartCheckin?: () => void; }
 
-export function DailyIntel({ profile, leads, calendar }: Props) {
+export function DailyIntel({ profile, leads, calendar, onStartCheckin }: Props) {
   const [brief, setBrief]       = useState<Brief | null>(null);
   const [loading, setLoading]   = useState(true);
   const [briefError, setBriefError] = useState<string | null>(null);
@@ -127,6 +128,35 @@ export function DailyIntel({ profile, leads, calendar }: Props) {
                 <Icon name="target" size={14} color="var(--accent)" /><span><strong>Today's focus:</strong> {brief.focus}</span>
               </p>
             </div>
+
+            {/* Yesterday's wins */}
+            {(brief.wins.completedTasks.length > 0 || brief.wins.appointments.length > 0) && (
+              <div style={{ padding: '12px 16px', borderRadius: 10, background: 'rgba(16,185,129,.07)', border: '1px solid rgba(16,185,129,.22)' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#10b981', marginBottom: 8 }}>
+                  🏆 Yesterday&rsquo;s Wins
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {brief.wins.completedTasks.map((t, i) => (
+                    <span key={`t${i}`} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 999, background: 'rgba(16,185,129,.12)', color: '#10b981', fontWeight: 600 }}>✅ {t}</span>
+                  ))}
+                  {brief.wins.appointments.map((a, i) => (
+                    <span key={`a${i}`} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 999, background: 'rgba(74,144,217,.12)', color: 'var(--accent-label)', fontWeight: 600 }}>📅 {a}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Morning check-in CTA — launches the interactive standup in chat */}
+            {onStartCheckin && (
+              <button onClick={onStartCheckin} style={{
+                width: '100%', padding: '12px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                background: 'linear-gradient(135deg, #4a90d9 0%, #0f4c81 100%)', color: '#fff',
+                fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                boxShadow: '0 4px 16px rgba(74,144,217,.3)',
+              }}>
+                ☀️ Start Morning Check-in with {profile.copilot_name || 'Pilot'}
+              </button>
+            )}
 
             {/* GHL heads-up — messages from people NOT in the pipeline (only if GHL connected) */}
             {brief.ghlConnected && brief.ghlHeadsUp.length > 0 && (

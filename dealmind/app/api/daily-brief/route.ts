@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { buildDailyBriefSplit } from '@/lib/claude';
+import { fetchYesterdayWins } from '@/lib/wins';
 import { fetchGhlBriefContext, type GhlBriefContext } from '@/lib/ghl';
 
 export const dynamic = 'force-dynamic';
@@ -48,13 +49,15 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    const wins = await fetchYesterdayWins(supabase, user.id);
     const brief = await buildDailyBriefSplit(
       profile as any,
       (leads || []) as any,
       (calendar || []) as any,
       ghlContext,
       (tasks || []) as any,
-      cachedNarrative
+      cachedNarrative,
+      wins
     );
 
     // Persist just the narrative for the rest of today if we generated it fresh.

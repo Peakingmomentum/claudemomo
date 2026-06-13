@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { notifySlack } from '@/lib/slack';
 import { checkRateLimit, rateLimitResponse, LIMITS } from '@/lib/ratelimit';
 import { textLeadViaGhl, upsertGhlContact, fetchGhlBriefContext, type GhlCreds } from '@/lib/ghl';
+import { fetchYesterdayWins } from '@/lib/wins';
 import { clientFromTokens, listRecentEmails, listCalendarEvents, createCalendarEvent } from '@/lib/google';
 
 type GoogleCreds = { accessToken: string; refreshToken: string | null };
@@ -337,6 +338,17 @@ async function executeTool(
     };
   }
 
+  if (toolName === 'complete_task') {
+    const q = String(input.task || '').toLowerCase().trim();
+    if (!q) return { result: 'Which task should I mark complete?' };
+    const { data: openT } = await supabase.from('calendar_events')
+      .select('id, title').eq('user_id', userId).eq('event_type', 'task').is('completed_at', null);
+    const t = (openT || []).find((x: any) => x.title.toLowerCase().includes(q) || q.includes(x.title.toLowerCase()));
+    if (!t) return { result: `No open task matching "${input.task}". It may already be done.` };
+    await supabase.from('calendar_events').update({ completed_at: new Date().toISOString() }).eq('id', t.id);
+    return { result: `Marked task "${t.title}" complete. ✅`, action: { type: 'calendar_updated' } };
+  }
+
   if (toolName === 'create_task') {
     // Tasks are LOCAL to Pilot (the Tasks menu) — never pushed to GoHighLevel.
     const title = (input.title || '').trim();
@@ -415,9 +427,12 @@ export async function POST(req: NextRequest) {
       ? { accessToken: (profile as any).gmail_access_token, refreshToken: (profile as any).gmail_refresh_token || null }
       : null;
 
+  // Yesterday's wins (completed tasks + appointments) — fuels the morning check-in.
+  const wins = isCoaching ? null : await fetchYesterdayWins(supabase, user.id);
+
   const systemPrompt = isCoaching
     ? buildCoachingPrompt(profile as any)
-    : buildSystemPrompt(profile as any, (leads || []) as any, (calendar || []) as any, tz);
+    : buildSystemPrompt(profile as any, (leads || []) as any, (calendar || []) as any, tz, wins);
 
   // Build message history
   const apiMessages: { role: 'user' | 'assistant'; content: any }[] = [

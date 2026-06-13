@@ -14,6 +14,8 @@ interface Props {
   onLeadChange?: () => void;
   onNavigateToLead?: (leadId: string) => void;
   embedded?: boolean;
+  seedMessage?: string | null;
+  onSeedConsumed?: () => void;
 }
 
 // ── Suggested prompts ─────────────────────────────────────────
@@ -103,7 +105,7 @@ function renderContent(
 
 // ── Component ─────────────────────────────────────────────────
 
-export function CopilotChat({ profile, leads, messages, setMessages, onLeadChange, onNavigateToLead, embedded }: Props) {
+export function CopilotChat({ profile, leads, messages, setMessages, onLeadChange, onNavigateToLead, embedded, seedMessage, onSeedConsumed }: Props) {
   const [draft, setDraft]             = useState('');
   const [sending, setSending]         = useState(false);
   const [suggestOpen, setSuggestOpen] = useState(false);
@@ -165,6 +167,17 @@ export function CopilotChat({ profile, leads, messages, setMessages, onLeadChang
   function handleKey(e: React.KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   }
+
+  // Auto-send a seeded message (e.g. the morning check-in launched from Daily Intel).
+  const seedSent = useRef<string | null>(null);
+  useEffect(() => {
+    if (seedMessage && seedSent.current !== seedMessage && !sending) {
+      seedSent.current = seedMessage;
+      send(seedMessage);
+      onSeedConsumed?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seedMessage]);
 
   const hasMessages = messages.length > 0;
 

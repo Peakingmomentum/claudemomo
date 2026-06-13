@@ -84,6 +84,7 @@ export default function DashboardClient({ profile: initialProfile, initialLeads,
   const [calendar, setCalendar] = useState(initialCalendar);
   const [focusLeadId, setFocusLeadId] = useState<string | null>(null);
   const [showMore, setShowMore] = useState(false);
+  const [checkinSeed, setCheckinSeed] = useState<string | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const supabase = createSupabaseBrowserClient();
   const copilotName = profile.copilot_name || 'Pilot';
@@ -245,7 +246,7 @@ export default function DashboardClient({ profile: initialProfile, initialLeads,
 
         {/* Content area */}
         <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? 12 : 20, minHeight: 0 }}>
-          {tab === 'intel'       && <DailyIntel profile={profile} leads={leads} calendar={calendar} />}
+          {tab === 'intel'       && <DailyIntel profile={profile} leads={leads} calendar={calendar} onStartCheckin={() => { setCheckinSeed("Let's do my morning check-in. Celebrate yesterday's wins, then walk me through my open and overdue tasks one at a time — ask what happened with each and log the updates (notes, completed tasks, new follow-ups, appointments) as we go."); if (isMobile) setTab('copilot'); }} />}
           {tab === 'leads'       && <MyLeads profile={profile} leads={leads} setLeads={setLeads} calendar={calendar} focusLeadId={focusLeadId} onFocusCleared={() => setFocusLeadId(null)} />}
           {tab === 'tasks'       && <TasksView profile={profile} leads={leads} calendar={calendar} onCalendarChange={refreshCalendar} />}
           {tab === 'coaching'    && <CoachingTab profile={profile} />}
@@ -262,6 +263,8 @@ export default function DashboardClient({ profile: initialProfile, initialLeads,
               setMessages={setMessages}
               onLeadChange={() => { refreshLeads(); refreshCalendar(); }}
               onNavigateToLead={id => { setFocusLeadId(id); setTab('leads'); }}
+              seedMessage={checkinSeed}
+              onSeedConsumed={() => setCheckinSeed(null)}
             />
           )}
         </div>
@@ -292,6 +295,8 @@ export default function DashboardClient({ profile: initialProfile, initialLeads,
             onLeadChange={() => { refreshLeads(); refreshCalendar(); }}
             onNavigateToLead={id => { setFocusLeadId(id); setTab('leads'); }}
             embedded
+            seedMessage={checkinSeed}
+            onSeedConsumed={() => setCheckinSeed(null)}
           />
         </div>
       )}
