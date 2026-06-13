@@ -10,9 +10,10 @@ interface Props {
   placeholder?: string;
   multiline?: boolean;
   summarize?: boolean;
+  onEnter?: () => void;
 }
 
-export function VoiceField({ value, onChange, placeholder, multiline, summarize }: Props) {
+export function VoiceField({ value, onChange, placeholder, multiline, summarize, onEnter }: Props) {
   const [supported,  setSupported]  = useState(false); // drives mic button visibility
   const [listening,  setListening]  = useState(false); // recording in progress
   const [condensing, setCondensing] = useState(false); // transcribing / summarizing
@@ -94,6 +95,13 @@ export function VoiceField({ value, onChange, placeholder, multiline, summarize 
       <Tag
         value={value}
         onChange={e => onChange((e.target as HTMLInputElement).value)}
+        onKeyDown={(e: any) => {
+          // Enter submits on single-line fields (Shift+Enter / multiline = newline).
+          if (onEnter && !multiline && e.key === 'Enter' && !e.shiftKey && !e.nativeEvent?.isComposing) {
+            e.preventDefault();
+            onEnter();
+          }
+        }}
         placeholder={condensing ? 'Transcribing…' : placeholder}
         disabled={condensing}
         style={{

@@ -164,10 +164,6 @@ export function CopilotChat({ profile, leads, messages, setMessages, onLeadChang
     }
   }
 
-  function handleKey(e: React.KeyboardEvent) {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
-  }
-
   // Auto-send a seeded message (e.g. the morning check-in launched from Daily Intel).
   const seedSent = useRef<string | null>(null);
   useEffect(() => {
@@ -335,9 +331,10 @@ export function CopilotChat({ profile, leads, messages, setMessages, onLeadChang
             onChange={setDraft}
             placeholder={`Ask ${copilotName}… or tap 🎤 to speak`}
             summarize
+            onEnter={() => send()}
           />
         </div>
-        <button className="btn" onClick={() => send()} onKeyDown={handleKey} disabled={!draft.trim() || sending}>
+        <button className="btn" onClick={() => send()} disabled={!draft.trim() || sending}>
           <Icon name="send" />
         </button>
       </div>
