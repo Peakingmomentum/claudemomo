@@ -20,6 +20,11 @@ export function buildSystemPrompt(
   const active = leads.filter(l => !l.is_dead);
   const copilotName = user.copilot_name || 'Pilot';
 
+  // Tasks live in calendar_events as event_type 'task'; keep them separate from
+  // real calendar events so the copilot sees the user's to-do list explicitly.
+  const openTasks = calendar.filter(c => (c as any).event_type === 'task' && !(c as any).completed_at);
+  const events    = calendar.filter(c => (c as any).event_type !== 'task');
+
   const now = new Date();
   const currentDateTime = now.toLocaleString('en-US', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -43,10 +48,13 @@ SIGNATURE (use these EXACT values in any outreach — never a placeholder):
 - Company: ${(user as any).company_name || '(not set — ask the user their company and tell them to save it in Settings)'}
 
 MY LEADS (${active.length} active):
-${active.map(l => `• [id:${l.id}] ${l.name} | ${l.property || 'n/a'} | ${l.stage} | Motivation: ${l.motivation} | Last contact: ${l.last_contact}d ago${l.deal_value ? ` | Value: $${l.deal_value.toLocaleString()}` : ''} | ${l.notes || ''}`).join('\n') || '(no leads yet)'}
+${active.map(l => `• [id:${l.id}] ${l.name} | ${l.property || 'n/a'} | ${l.stage} | Motivation: ${l.motivation} | Last contact: ${l.last_contact}d ago${l.deal_value ? ` | Value: $${l.deal_value.toLocaleString()}` : ''}${l.notes ? ` | ${l.notes.replace(/\s+/g, ' ').slice(0, 200)}` : ''}`).join('\n') || '(no leads yet)'}
+
+OPEN TASKS (${openTasks.length}):
+${openTasks.map(t => `• ${t.title}${t.event_date ? ` — due ${new Date(t.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}`).join('\n') || '(no open tasks)'}
 
 CALENDAR:
-${calendar.map(c => `• ${c.title} — ${c.event_date}`).join('\n') || '(no events)'}
+${events.map(c => `• ${c.title} — ${c.event_date}`).join('\n') || '(no events)'}
 
 URGENT (7+ days no contact): ${urgent.map(l => l.name).join(', ') || 'none'}
 HOT LEADS: ${hot.map(l => l.name).join(', ') || 'none'}
@@ -319,7 +327,8 @@ export async function buildDailyBriefSplit(
   ghlContext?: {
     conversations: { name: string; lastMessage: string; direction: string; unread: boolean }[];
     appointments: { title: string; startTime: string; contactName?: string }[];
-  } | null
+  } | null,
+  tasks: CalendarEvent[] = []
 ): Promise<any> {
   const active    = leads.filter(l => !l.is_dead);
   const urgent    = active.filter(l => l.last_contact >= 7);
@@ -334,11 +343,12 @@ export async function buildDailyBriefSplit(
 AGENT: ${profile.user_name || 'Agent'} | ${profile.role || 'investor'} | ${profile.city || 'unknown'}
 TIME: ${timeOfDay} on ${dateStr}
 LEADS (${active.length} active):
-${active.slice(0, 20).map(l => `• ${l.name} | ${l.stage} | ${l.motivation} motivation | ${l.last_contact}d no contact${l.notes ? ' | ' + l.notes.slice(0, 60) : ''}`).join('\n') || 'NONE'}
+${active.slice(0, 50).map(l => `• ${l.name} | ${l.stage} | ${l.motivation} motivation | ${l.last_contact}d no contact${l.notes ? ' | ' + l.notes.slice(0, 60) : ''}`).join('\n') || 'NONE'}
 GOING COLD (7+ days): ${urgent.map(l => l.name).join(', ') || 'none'}
 DEAD COLD (14+ days): ${noContact.map(l => l.name).join(', ') || 'none'}
 HOT LEADS: ${hot.map(l => l.name).join(', ') || 'none'}
-CALENDAR TODAY: ${calendar.length === 0 ? 'nothing scheduled' : calendar.map(c => c.title).join(', ')}`;
+CALENDAR TODAY: ${calendar.length === 0 ? 'nothing scheduled' : calendar.map(c => c.title).join(', ')}
+OPEN TASKS (${tasks.length}): ${tasks.length === 0 ? 'none' : tasks.slice(0, 30).map(t => `${t.title}${t.event_date ? ` (due ${new Date(t.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})` : ''}`).join('; ')}`;
 
   // GHL CRM activity — who replied, who's quiet, what's booked (if connected)
   const ghlBlock = ghlContext && (ghlContext.conversations.length || ghlContext.appointments.length)
@@ -382,13 +392,11 @@ Return ONLY valid JSON:
 }
 Return ONLY JSON.`;
 
-  // Run both in parallel
+  // Run both in parallel — both on Haiku; the brief is structured JSON, not prose,
+  // so Sonnet was ~20x overkill for the 3-field greeting/insight.
   const [todosRaw, insightRaw] = await Promise.all([
     callHaiku(todosPrompt, 700),
-    anthropic.messages.create({
-      model: MODEL, max_tokens: 300,
-      messages: [{ role: 'user', content: insightPrompt }],
-    }).then(r => (r.content.find(b => b.type === 'text') as any)?.text || '{}'),
+    callHaiku(insightPrompt, 300),
   ]);
 
   let parsedTodos: any = { todos: [], prospecting: [] };

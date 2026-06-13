@@ -1,14 +1,20 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { checkRateLimit, getClientIp, rateLimitResponse, LIMITS } from '@/lib/ratelimit';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { checkRateLimit, rateLimitResponse, LIMITS } from '@/lib/ratelimit';
 
 export const runtime = 'nodejs';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
 export async function POST(req: NextRequest) {
-  // Unauthenticated endpoint — limit by client IP to cap abuse/cost.
-  const allowed = await checkRateLimit(`voice:${getClientIp(req)}`, LIMITS.voice);
+  // Require auth — this calls Anthropic, so it must not be an open cost vector.
+  const supabase = createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
+
+  // Rate-limit per user to cap abuse/cost.
+  const allowed = await checkRateLimit(`voice:${user.id}`, LIMITS.voice);
   if (!allowed) return rateLimitResponse(LIMITS.voice);
 
   const { transcript } = await req.json() as { transcript: string };

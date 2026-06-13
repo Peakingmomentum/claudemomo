@@ -10,13 +10,16 @@ export async function GET(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
 
-  const [{ data: profile }, { data: leads }, { data: calendar }] = await Promise.all([
+  const [{ data: profile }, { data: leads }, { data: calendar }, { data: tasks }] = await Promise.all([
     supabase.from('users').select('*').eq('id', user.id).single(),
     supabase.from('leads').select('*').eq('user_id', user.id).eq('is_dead', false),
     supabase.from('calendar_events').select('*').eq('user_id', user.id)
       .gte('event_date', new Date().toISOString())
       .lte('event_date', new Date(Date.now() + 86400000).toISOString())
       .order('event_date'),
+    // All still-open tasks (incl. overdue) so the brief reflects real workload.
+    supabase.from('calendar_events').select('*').eq('user_id', user.id)
+      .eq('event_type', 'task').is('completed_at', null).order('event_date'),
   ]);
 
   if (!profile) return NextResponse.json({ error: 'no profile' }, { status: 400 });
@@ -49,7 +52,8 @@ export async function GET(req: NextRequest) {
       profile as any,
       (leads || []) as any,
       (calendar || []) as any,
-      ghlContext
+      ghlContext,
+      (tasks || []) as any
     );
 
     // Cache it

@@ -374,7 +374,10 @@ export async function POST(req: NextRequest) {
     supabase.from('users').select('*').eq('id', user.id).single(),
     supabase.from('leads').select('*').eq('user_id', user.id).eq('is_dead', false),
     supabase.from('calendar_events').select('*').eq('user_id', user.id)
-      .gte('event_date', new Date().toISOString()).order('event_date'),
+      // Future events/appointments PLUS any still-open task (incl. overdue) so
+      // the copilot always sees the user's outstanding to-dos.
+      .or(`event_date.gte.${new Date().toISOString()},and(event_type.eq.task,completed_at.is.null)`)
+      .order('event_date'),
     historyQuery,
   ]);
 

@@ -60,9 +60,15 @@ export async function GET(req: NextRequest) {
   // Attribute referral for new signups (non-blocking)
   attributeReferral(user.id);
 
-  // Only allow same-origin redirects — reject absolute URLs to prevent open redirect
+  // Only allow same-origin redirects — resolve against our origin and reject any
+  // off-site destination. This blocks protocol-relative bypasses like "//evil.com"
+  // (which pass a naive startsWith('/') check but browsers treat as absolute).
   if (redirectTo) {
-    const safe = redirectTo.startsWith('/') ? redirectTo : '/dashboard';
+    let safe = '/dashboard';
+    try {
+      const dest = new URL(redirectTo, url.origin);
+      if (dest.origin === url.origin) safe = dest.pathname + dest.search;
+    } catch { /* malformed — fall back to /dashboard */ }
     return NextResponse.redirect(new URL(safe, req.url));
   }
   if (skip) return NextResponse.redirect(new URL('/dashboard', req.url));
