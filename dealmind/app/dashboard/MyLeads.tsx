@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import * as XLSX from 'xlsx';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 import { Icon } from '@/components/Icon';
 import type { Lead, DealMindUser, CalendarEvent, UserRole } from '@/types';
@@ -114,35 +113,6 @@ interface Props {
   onFocusCleared?: () => void;
 }
 
-// ─── Import helpers ───────────────────────────────────────────────────────────
-
-function parseFile(file: File): Promise<Record<string, string>[]> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = e => {
-      try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const wb = XLSX.read(data, { type: 'array' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { defval: '' });
-        resolve(rows);
-      } catch (err) {
-        reject(err);
-      }
-    };
-    reader.onerror = reject;
-    reader.readAsArrayBuffer(file);
-  });
-}
-
-function guessCol(headers: string[], ...patterns: string[]): string {
-  for (const p of patterns) {
-    const h = headers.find(h => h.toLowerCase().includes(p.toLowerCase()));
-    if (h) return h;
-  }
-  return '';
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function MyLeads({ profile, leads, setLeads, calendar, focusLeadId, onFocusCleared }: Props) {
@@ -164,76 +134,6 @@ export function MyLeads({ profile, leads, setLeads, calendar, focusLeadId, onFoc
   }
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState<Partial<Lead>>({ name: '', property: '', stage: 'New Lead', motivation: 'Unknown' });
-  const importRef = useRef<HTMLInputElement | null>(null);
-  const [importing, setImporting] = useState(false);
-  const [importRows, setImportRows] = useState<Record<string, string>[] | null>(null);
-  const [colMap, setColMap] = useState<Record<string, string>>({});
-  const [importProgress, setImportProgress] = useState<{ done: number; total: number } | null>(null);
-
-  async function handleImportFile(file: File) {
-    setImporting(true);
-    try {
-      const rows = await parseFile(file);
-      if (!rows.length) { alert('No rows found in file.'); setImporting(false); return; }
-      const headers = Object.keys(rows[0]);
-      setColMap({
-        name:     guessCol(headers, 'owner name', 'owner', 'name', 'contact', 'first name'),
-        property: guessCol(headers, 'property address', 'address', 'situs', 'prop addr', 'street'),
-        phone:    guessCol(headers, 'phone', 'mobile', 'cell', 'telephone'),
-        email:    guessCol(headers, 'email'),
-        notes:    guessCol(headers, 'notes', 'comment', 'description'),
-      });
-      setImportRows(rows);
-    } catch {
-      alert('Could not parse file. Make sure it is a valid CSV or XLSX.');
-    }
-    setImporting(false);
-  }
-
-  async function confirmImport() {
-    if (!importRows) return;
-    setImportProgress({ done: 0, total: importRows.length });
-    const CHUNK = 100;
-    const newLeads: Lead[] = [];
-
-    for (let i = 0; i < importRows.length; i += CHUNK) {
-      const batch = importRows.slice(i, i + CHUNK).map(row => ({
-        user_id:    profile.id,
-        name:       (colMap.name    ? row[colMap.name]    : '') || 'Unknown',
-        property:   colMap.property ? row[colMap.property] : null,
-        phone:      colMap.phone    ? row[colMap.phone]    : null,
-        email:      colMap.email    ? row[colMap.email]    : null,
-        notes:      colMap.notes    ? row[colMap.notes]    : null,
-        stage:      'New Lead',
-        motivation: 'Unknown',
-      }));
-      const { data, error } = await supabase.from('leads').insert(batch).select();
-      if (!error && data) newLeads.push(...(data as Lead[]));
-      setImportProgress({ done: Math.min(i + CHUNK, importRows.length), total: importRows.length });
-    }
-
-    setLeads(l => [...newLeads, ...l]);
-    setImportRows(null);
-    setImportProgress(null);
-
-    // Enrich imported leads in background — stagger requests to avoid hammering API
-    newLeads.forEach((lead, i) => {
-      setTimeout(() => {
-        fetch('/api/enrich-lead', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lead_id: lead.id }),
-        })
-          .then(r => r.json())
-          .then(({ enrichment }) => {
-            if (enrichment) {
-              setLeads(l => l.map(x => x.id === lead.id ? { ...x, ai_enrichment: enrichment } : x));
-            }
-          })
-          .catch(() => {});
-      }, i * 200); // 200ms stagger per lead
-    });
-  }
 
   async function addLead() {
     if (!draft.name?.trim()) return;
@@ -285,13 +185,6 @@ export function MyLeads({ profile, leads, setLeads, calendar, focusLeadId, onFoc
           )}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <input ref={importRef} type="file" accept=".csv,.xlsx,.xls"
-            style={{ display: 'none' }}
-            onChange={e => { const f = e.target.files?.[0]; if (f) handleImportFile(f); e.target.value = ''; }} />
-          <button className="btn btn-ghost" onClick={() => importRef.current?.click()} disabled={importing}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <Icon name="upload" size={15} />{importing ? 'Reading…' : 'Import CSV / XLS'}
-          </button>
           <button className="btn" onClick={() => setAdding(a => !a)}>
             <Icon name="plus" /> Add lead
           </button>
@@ -326,60 +219,6 @@ export function MyLeads({ profile, leads, setLeads, calendar, focusLeadId, onFoc
               </button>
             );
           })}
-        </div>
-      )}
-
-      {/* Import progress */}
-      {importProgress && (
-        <div className="card" style={{ color: 'var(--muted)', fontSize: 13 }}>
-          Importing… {importProgress.done} / {importProgress.total}
-          <div style={{ marginTop: 8, background: 'var(--border)', borderRadius: 4, height: 6 }}>
-            <div style={{
-              height: 6, borderRadius: 4, background: 'var(--accent)',
-              width: `${(importProgress.done / importProgress.total) * 100}%`,
-              transition: 'width .2s'
-            }} />
-          </div>
-        </div>
-      )}
-
-      {/* Column mapping modal */}
-      {importRows && !importProgress && (
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div>
-            <div style={{ fontWeight: 600, fontSize: 15 }}>
-              Map columns — {importRows.length.toLocaleString()} rows detected
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
-              We auto-detected these. Fix any that look wrong before importing.
-            </div>
-          </div>
-          {(['name','property','phone','email','notes'] as const).map(field => {
-            const headers = ['(skip)', ...Object.keys(importRows[0])];
-            return (
-              <div key={field} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ width: 90, fontWeight: 600, fontSize: 13, textTransform: 'capitalize' }}>{field}</div>
-                <select
-                  value={colMap[field] || '(skip)'}
-                  onChange={e => setColMap(m => ({ ...m, [field]: e.target.value === '(skip)' ? '' : e.target.value }))}
-                  style={{ flex: 1 }}
-                >
-                  {headers.map(h => <option key={h}>{h}</option>)}
-                </select>
-                {colMap[field] && importRows[0][colMap[field]] && (
-                  <div style={{ fontSize: 12, color: 'var(--muted)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    e.g. {importRows[0][colMap[field]]}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn" onClick={confirmImport}>
-              Import {importRows.length.toLocaleString()} leads
-            </button>
-            <button className="btn btn-ghost" onClick={() => setImportRows(null)}>Cancel</button>
-          </div>
         </div>
       )}
 
