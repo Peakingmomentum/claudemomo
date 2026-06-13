@@ -46,22 +46,6 @@ const CONNECTORS: Connector[] = [
     type: 'coming_soon',
   },
 
-  // Data / List Services
-  {
-    id: 'propstream', name: 'PropStream', category: 'data',
-    description: 'Pull absentee, pre-foreclosure, and equity lists directly into the stacker.',
-    logoInitial: 'PS', logoColor: '#5A67D8',
-    type: 'apikey', field: 'propstream_api_key',
-    docsUrl: 'https://api.propstream.com',
-  },
-  {
-    id: 'batchleads', name: 'BatchLeads', category: 'data',
-    description: 'Import motivated seller lists and skip-traced contacts automatically.',
-    logoInitial: 'BL', logoColor: '#48BB78',
-    type: 'apikey', field: 'batchleads_api_key',
-    docsUrl: 'https://batchleads.io/api',
-  },
-
   // Automation
   {
     id: 'liststacker', name: 'List Stacker', category: 'automation',
@@ -98,22 +82,6 @@ const CONNECTORS: Connector[] = [
     type: 'coming_soon',
     docsUrl: 'https://granola.so',
     badge: 'Meeting Notes',
-  },
-  {
-    id: 'otter', name: 'Otter.ai', category: 'notes',
-    description: 'Transcribes calls and meetings in real time. Connect Otter to push meeting summaries directly to your lead notes.',
-    logoInitial: 'Ot', logoColor: '#5B4CF5',
-    type: 'coming_soon',
-    docsUrl: 'https://otter.ai',
-    badge: 'Transcription',
-  },
-  {
-    id: 'fireflies', name: 'Fireflies.ai', category: 'notes',
-    description: 'Records, transcribes, and summarises your sales calls. Use the webhook to sync call notes into the right lead automatically.',
-    logoInitial: 'Ff', logoColor: '#f97316',
-    type: 'coming_soon',
-    docsUrl: 'https://fireflies.ai',
-    badge: 'Call Recording',
   },
 ];
 
@@ -202,7 +170,7 @@ export function Connectors({ profile, onProfileUpdate }: Props) {
     return false;
   }
 
-  const categories = ['communication', 'data', 'automation', 'notes'] as const;
+  const categories = ['communication', 'automation', 'notes'] as const;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
