@@ -21,9 +21,18 @@ export default async function DashboardPage() {
 
   if (!profile) redirect('/onboarding');
 
+  // Never ship credentials to the browser. The client only needs to know whether
+  // a connector is set (every client check is `!!profile[field]`), not its value —
+  // so redact secret values to a truthy placeholder and drop server-only blobs.
+  const REDACT = ['ghl_api_key', 'warmfollow_api_key', 'slack_webhook_url', 'zapier_webhook_url', 'propstream_api_key', 'batchleads_api_key', 'reiskip_api_key'];
+  const STRIP  = ['gcal_access_token', 'gcal_refresh_token', 'daily_brief_cache'];
+  const safeProfile: any = { ...profile };
+  for (const f of REDACT) if (safeProfile[f]) safeProfile[f] = '__set__';
+  for (const f of STRIP) delete safeProfile[f];
+
   return (
     <DashboardClient
-      profile={profile as any}
+      profile={safeProfile as any}
       initialLeads={(leads || []) as any}
       initialMessages={((messages || []).slice().reverse()) as any}
       initialCalendar={(calendar || []) as any}
