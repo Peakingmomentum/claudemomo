@@ -401,6 +401,9 @@ export async function POST(req: NextRequest) {
 
   const allowed = await checkRateLimit(`copilot:${user.id}`, LIMITS.copilot);
   if (!allowed) return rateLimitResponse(LIMITS.copilot);
+  // Daily ceiling — bounds per-user Anthropic cost / catches runaway usage & bots.
+  const withinDaily = await checkRateLimit(`copilot-day:${user.id}`, LIMITS.copilotDay);
+  if (!withinDaily) return rateLimitResponse(LIMITS.copilotDay);
 
   const { message, context, tz, tzOffset } = await req.json() as
     { message: string; context?: string; tz?: string; tzOffset?: number };

@@ -14,13 +14,16 @@ export interface RateLimitRule {
  * endpoint (a direct cost vector) is tighter and keyed by IP.
  */
 export const LIMITS = {
-  // Core copilot chat — heavy users send many messages a minute; stay generous.
-  copilot:     { limit: 40, windowSeconds: 60 } as RateLimitRule,
+  // Core copilot chat. Each request can fan out to ~5 Anthropic calls, so keep
+  // the per-minute ceiling tight to flag abuse/bots and bound burst cost.
+  copilot:     { limit: 15, windowSeconds: 60 } as RateLimitRule,
+  // Hard daily ceiling per user — the real cost cap against runaway usage/bots.
+  copilotDay:  { limit: 300, windowSeconds: 86400 } as RateLimitRule,
   // External paid-API calls (skip-trace / enrichment) — moderate.
   enrich:      { limit: 20, windowSeconds: 60 } as RateLimitRule,
   hotLeads:    { limit: 15, windowSeconds: 60 } as RateLimitRule,
-  // Unauthenticated voice summariser — keyed by IP, calls Anthropic.
-  voice:       { limit: 30, windowSeconds: 60 } as RateLimitRule,
+  // Voice summariser — keyed by user, calls Anthropic.
+  voice:       { limit: 20, windowSeconds: 60 } as RateLimitRule,
   // Generic authenticated fallback.
   standard:    { limit: 60, windowSeconds: 60 } as RateLimitRule,
 };

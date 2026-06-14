@@ -4,7 +4,8 @@ import '@/styles/globals.css';
 export const metadata: Metadata = {
   title: 'Pocket Pilot — Your AI real estate copilot',
   description: 'AI copilot, lead pipeline, daily briefings, and automated outreach for real estate pros.',
-  manifest: '/manifest.json'
+  manifest: '/manifest.json',
+  verification: { google: 'icHSyT_jk9isP7jZJ7ED93RIA4cB4Z7---C_6rtX5pA' },
 };
 
 export const viewport: Viewport = {
