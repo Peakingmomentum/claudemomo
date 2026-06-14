@@ -11,9 +11,10 @@ interface Props {
   multiline?: boolean;
   summarize?: boolean;
   onEnter?: () => void;
+  autoGrow?: boolean;
 }
 
-export function VoiceField({ value, onChange, placeholder, multiline, summarize, onEnter }: Props) {
+export function VoiceField({ value, onChange, placeholder, multiline, summarize, onEnter, autoGrow }: Props) {
   const [supported,  setSupported]  = useState(false); // drives mic button visibility
   const [listening,  setListening]  = useState(false); // recording in progress
   const [condensing, setCondensing] = useState(false); // transcribing / summarizing
@@ -86,18 +87,30 @@ export function VoiceField({ value, onChange, placeholder, multiline, summarize,
     }
   };
 
-  const Tag = multiline ? 'textarea' : 'input';
+  const Tag = (multiline || autoGrow) ? 'textarea' : 'input';
+  const taRef = useRef<HTMLTextAreaElement | null>(null);
+  // Auto-resize the textarea to fit its content (capped), so the user always
+  // sees everything they've typed.
+  useEffect(() => {
+    if (!autoGrow) return;
+    const el = taRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+  }, [value, autoGrow]);
   const micBg    = listening ? 'var(--danger)' : condensing ? '#f59e0b' : 'var(--surface)';
   const micTitle = listening ? 'Stop recording' : condensing ? 'Transcribing…' : 'Start voice input';
 
   return (
     <div style={{ position: 'relative', width: '100%' }}>
       <Tag
+        ref={autoGrow ? (taRef as any) : undefined}
+        rows={autoGrow ? 1 : undefined}
         value={value}
         onChange={e => onChange((e.target as HTMLInputElement).value)}
         onKeyDown={(e: any) => {
-          // Enter submits on single-line fields (Shift+Enter / multiline = newline).
-          if (onEnter && !multiline && e.key === 'Enter' && !e.shiftKey && !e.nativeEvent?.isComposing) {
+          // Enter sends when an onEnter handler is provided; Shift+Enter = newline.
+          if (onEnter && e.key === 'Enter' && !e.shiftKey && !e.nativeEvent?.isComposing) {
             e.preventDefault();
             onEnter();
           }
@@ -107,7 +120,11 @@ export function VoiceField({ value, onChange, placeholder, multiline, summarize,
         style={{
           width: '100%',
           paddingRight: supported ? 48 : undefined,
-          minHeight: multiline ? 96 : undefined,
+          minHeight: autoGrow ? 40 : multiline ? 96 : undefined,
+          maxHeight: autoGrow ? 140 : undefined,
+          overflowY: autoGrow ? 'auto' : undefined,
+          resize: autoGrow ? 'none' : undefined,
+          lineHeight: autoGrow ? 1.4 : undefined,
           opacity: condensing ? 0.6 : 1,
         }}
       />
@@ -120,7 +137,8 @@ export function VoiceField({ value, onChange, placeholder, multiline, summarize,
           aria-label={micTitle}
           title={micTitle}
           style={{
-            position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+            position: 'absolute', right: 8,
+            ...(autoGrow ? { bottom: 6 } : { top: '50%', transform: 'translateY(-50%)' }),
             background: micBg,
             border: '1px solid var(--border)',
             borderRadius: 8, padding: 6,

@@ -91,6 +91,8 @@ export function MyLeads({ profile, leads, setLeads, calendar, focusLeadId, onFoc
   }
   const [showArchived, setShowArchived] = useState(false);
   const [archived, setArchived] = useState<Lead[]>([]);
+  const [boardFocus, setBoardFocus] = useState<string | null>(null);
+  function openFromBoard(id: string) { changeView('list'); setBoardFocus(id); }
   function toggleArchived() {
     const next = !showArchived;
     setShowArchived(next);
@@ -272,7 +274,7 @@ export function MyLeads({ profile, leads, setLeads, calendar, focusLeadId, onFoc
       {showArchived ? (
         <ArchivedPanel leads={archived} onRestore={restoreLead} onDelete={permanentDelete} />
       ) : viewMode === 'board' ? (
-        <BoardView leads={sorted} stages={STAGES} onMove={(id, stage) => updateLead(id, { stage })} isMobile={isMobile} />
+        <BoardView leads={sorted} stages={STAGES} onMove={(id, stage) => updateLead(id, { stage })} onOpen={openFromBoard} isMobile={isMobile} />
       ) : (
         sorted.map(l => (
           <LeadCard
@@ -284,8 +286,8 @@ export function MyLeads({ profile, leads, setLeads, calendar, focusLeadId, onFoc
             onUpdate={patch => updateLead(l.id, patch)}
             onDelete={() => deleteLead(l.id)}
             isMobile={isMobile}
-            focusLead={l.id === focusLeadId}
-            onFocused={onFocusCleared}
+            focusLead={l.id === focusLeadId || l.id === boardFocus}
+            onFocused={() => { onFocusCleared?.(); setBoardFocus(null); }}
           />
         ))
       )}
@@ -303,8 +305,8 @@ const STAGE_COLOR: Record<string, string> = {
   'New Lead': '#94a3b8', 'Cold Lead': '#4a90d9', 'Warm Lead': '#f59e0b', 'Hot Lead': '#ef4444', 'Closed': '#10b981',
 };
 
-function BoardView({ leads, stages, onMove, isMobile }: {
-  leads: Lead[]; stages: string[]; onMove: (id: string, stage: string) => void; isMobile: boolean;
+function BoardView({ leads, stages, onMove, onOpen, isMobile }: {
+  leads: Lead[]; stages: string[]; onMove: (id: string, stage: string) => void; onOpen: (id: string) => void; isMobile: boolean;
 }) {
   return (
     <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8, alignItems: 'flex-start' }}>
@@ -320,12 +322,13 @@ function BoardView({ leads, stages, onMove, isMobile }: {
             {col.length === 0 ? (
               <div style={{ fontSize: 12, color: 'var(--muted)', padding: '14px 12px', textAlign: 'center', border: '1px dashed var(--border)', borderRadius: 10 }}>—</div>
             ) : col.map(l => (
-              <div key={l.id} style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--surface)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div key={l.id} onClick={() => onOpen(l.id)} title={`Open ${l.name}`}
+                style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--surface)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 6, cursor: 'pointer' }}>
                 <div style={{ fontWeight: 600, fontSize: 13 }}>{l.name}</div>
                 {l.property && <div style={{ fontSize: 11, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.property}</div>}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span title="Lead score" style={{ fontSize: 11, fontWeight: 800, color }}>{scoreLead(l)}</span>
-                  <select value={l.stage} onChange={e => onMove(l.id, e.target.value)} aria-label={`Move ${l.name} to a stage`}
+                  <select value={l.stage} onChange={e => onMove(l.id, e.target.value)} onClick={e => e.stopPropagation()} aria-label={`Move ${l.name} to a stage`}
                     style={{ flex: 1, fontSize: 12, padding: '4px 6px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg, #fff)', color: 'var(--text)', cursor: 'pointer' }}>
                     {stages.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>

@@ -331,6 +331,7 @@ export function CopilotChat({ profile, leads, messages, setMessages, onLeadChang
             onChange={setDraft}
             placeholder={`Ask ${copilotName}… or tap 🎤 to speak`}
             summarize
+            autoGrow
             onEnter={() => send()}
           />
         </div>
