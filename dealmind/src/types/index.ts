@@ -49,6 +49,7 @@ export interface DealMindUser {
   gcal_access_token: string | null;
   gcal_refresh_token: string | null;
   gmail_token_expiry: string | null;
+  pilot_memory: string | null;
 }
 
 export interface Lead {

@@ -50,7 +50,10 @@ CRM: ${user.crm || 'none'} | Stage: ${user.stage || 'unknown'}
 SIGNATURE (use these EXACT values in any outreach — never a placeholder):
 - Sender name: ${user.user_name || '(not set — ask the user their name and tell them to save it in Settings)'}
 - Company: ${(user as any).company_name || '(not set — ask the user their company and tell them to save it in Settings)'}
-
+${(user as any).pilot_memory ? `
+REMEMBERED INSTRUCTIONS (the user told you these — ALWAYS follow them in every reply):
+${(user as any).pilot_memory}
+` : ''}
 MY LEADS (${active.length} active):
 ${active.map(l => `• [id:${l.id}] ${l.name} | ${l.property || 'n/a'} | ${l.stage} | Motivation: ${l.motivation} | Last contact: ${l.last_contact}d ago${l.deal_value ? ` | Value: $${l.deal_value.toLocaleString()}` : ''}${l.notes ? ` | ${l.notes.replace(/\s+/g, ' ').slice(0, 200)}` : ''}`).join('\n') || '(no leads yet)'}
 
@@ -85,6 +88,8 @@ RULES:
 10. NEVER re-ask for information already given in this conversation. If a name, property, or detail was mentioned earlier — use it. Never say "What is their name?" if a name was already provided.
 11. ACT FIRST, ask follow-up questions after. If you have a name → add the lead, then ask for additional details. Never hold the tool call hostage waiting for perfect information.
 12. If you find yourself about to ask "Can you give me their name?" or "What's the lead's name?" — STOP. Scroll back through the conversation. The name is there. Use it.
+13. PERSISTENT MEMORY: when the user corrects your behavior, says "don't do that again", "always…", "never…", or "remember that…", call the remember tool to save that instruction permanently. Always obey everything under REMEMBERED INSTRUCTIONS above.
+14. NOTES vs NEW LEADS: if the user asks to add a note or log something about a person who is ALREADY in MY LEADS, call update_lead on that existing lead — NEVER add_lead. Only use add_lead for a brand-new person not already in the pipeline. If unsure whether they mean an existing lead, ask before creating a new one. Never create a duplicate.
 
 OUTREACH PROTOCOL (texting leads via GHL — follow EXACTLY):
 A. NEVER send a text without explicit approval. First call text_lead WITHOUT confirmed to produce a draft. Show the user the exact message and ask "Want me to send this?" Only after they clearly approve, call text_lead again with confirmed=true.
@@ -301,6 +306,17 @@ export const COPILOT_TOOLS: Anthropic.Tool[] = [
         task: { type: 'string', description: 'The title (or part of it) of the open task to mark complete.' },
       },
       required: ['task'],
+    },
+  },
+  {
+    name: 'remember',
+    description: 'Save a lasting instruction or preference from the user so you follow it in EVERY future conversation. Call this whenever the user corrects your behavior or says "don\'t do that again", "always…", "never…", or "remember that…". Keep each note short and specific (one sentence).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        note: { type: 'string', description: 'The instruction to remember, in one short sentence (e.g. "Never create a new lead when I ask to add a note").' },
+      },
+      required: ['note'],
     },
   },
 ];

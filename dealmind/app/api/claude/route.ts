@@ -345,6 +345,19 @@ async function executeTool(
     };
   }
 
+  if (toolName === 'remember') {
+    const note = String(input.note || '').trim();
+    if (!note) return { result: 'Nothing to remember.' };
+    const { data: u } = await supabase.from('users').select('pilot_memory').eq('id', userId).single();
+    const lines = ((u?.pilot_memory as string) || '').split('\n').map(l => l.trim()).filter(Boolean);
+    const entry = `- ${note}`;
+    if (!lines.some(l => l.toLowerCase() === entry.toLowerCase())) lines.push(entry);
+    // Cap to the last 40 lines / ~2000 chars so the prompt stays bounded.
+    const updated = lines.slice(-40).join('\n').slice(-2000);
+    await supabase.from('users').update({ pilot_memory: updated }).eq('id', userId);
+    return { result: `Got it — I'll remember that: "${note}"`, action: { type: 'memory_updated' } };
+  }
+
   if (toolName === 'complete_task') {
     const q = String(input.task || '').toLowerCase().trim();
     if (!q) return { result: 'Which task should I mark complete?' };

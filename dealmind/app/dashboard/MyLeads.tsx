@@ -89,6 +89,13 @@ export function MyLeads({ profile, leads, setLeads, calendar, focusLeadId, onFoc
     setViewMode(v);
     try { localStorage.setItem(`pp-view-${profile.id}`, v); } catch { /* ignore */ }
   }
+  const [showArchived, setShowArchived] = useState(false);
+  const [archived, setArchived] = useState<Lead[]>([]);
+  function toggleArchived() {
+    const next = !showArchived;
+    setShowArchived(next);
+    if (next) loadArchived();
+  }
   const [sortBy, setSortBy] = useState<SortMode>('score');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
@@ -132,9 +139,34 @@ export function MyLeads({ profile, leads, setLeads, calendar, focusLeadId, onFoc
     }
   }
 
+  // "Delete" now ARCHIVES (soft-delete) so nothing is lost; permanent deletion
+  // lives in the Archived view behind a confirm.
   async function deleteLead(id: string) {
+    const { error } = await supabase.from('leads').update({ is_dead: true }).eq('id', id);
+    if (!error) setLeads(l => l.map(x => x.id === id ? { ...x, is_dead: true } : x));
+  }
+
+  async function loadArchived() {
+    const { data } = await supabase.from('leads').select('*')
+      .eq('user_id', profile.id).eq('is_dead', true).order('updated_at', { ascending: false });
+    setArchived((data || []) as Lead[]);
+  }
+
+  async function restoreLead(id: string) {
+    const { error } = await supabase.from('leads').update({ is_dead: false, stage: 'New Lead' }).eq('id', id);
+    if (!error) {
+      setArchived(a => a.filter(x => x.id !== id));
+      setLeads(l => l.map(x => x.id === id ? { ...x, is_dead: false, stage: 'New Lead' } : x));
+    }
+  }
+
+  async function permanentDelete(id: string) {
+    if (typeof window !== 'undefined' && !window.confirm('Permanently delete this lead? This cannot be undone.')) return;
     const { error } = await supabase.from('leads').delete().eq('id', id);
-    if (!error) setLeads(l => l.filter(x => x.id !== id));
+    if (!error) {
+      setArchived(a => a.filter(x => x.id !== id));
+      setLeads(l => l.filter(x => x.id !== id));
+    }
   }
 
   const active = leads.filter(l => !l.is_dead);
@@ -173,6 +205,10 @@ export function MyLeads({ profile, leads, setLeads, calendar, focusLeadId, onFoc
               </button>
             ))}
           </div>
+          <button className="btn btn-ghost" onClick={toggleArchived}
+            style={{ fontSize: 12, color: showArchived ? 'var(--accent)' : 'var(--muted)' }}>
+            🗄 {showArchived ? 'Back to pipeline' : 'Archived'}
+          </button>
           <button className="btn" onClick={() => setAdding(a => !a)}>
             <Icon name="plus" /> Add lead
           </button>
@@ -233,7 +269,9 @@ export function MyLeads({ profile, leads, setLeads, calendar, focusLeadId, onFoc
         </div>
       )}
 
-      {viewMode === 'board' ? (
+      {showArchived ? (
+        <ArchivedPanel leads={archived} onRestore={restoreLead} onDelete={permanentDelete} />
+      ) : viewMode === 'board' ? (
         <BoardView leads={sorted} stages={STAGES} onMove={(id, stage) => updateLead(id, { stage })} isMobile={isMobile} />
       ) : (
         sorted.map(l => (
@@ -252,7 +290,7 @@ export function MyLeads({ profile, leads, setLeads, calendar, focusLeadId, onFoc
         ))
       )}
 
-      {active.length === 0 && !adding && (
+      {!showArchived && active.length === 0 && !adding && (
         <div className="card" style={{ textAlign: 'center', color: 'var(--muted)' }}>
           No leads yet. Click "Add lead" to start.
         </div>
@@ -297,6 +335,35 @@ function BoardView({ leads, stages, onMove, isMobile }: {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function ArchivedPanel({ leads, onRestore, onDelete }: {
+  leads: Lead[]; onRestore: (id: string) => void; onDelete: (id: string) => void;
+}) {
+  if (!leads.length) {
+    return (
+      <div className="card" style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
+        No archived leads. Leads you mark dead or remove land here — and can be restored any time.
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+        {leads.length} archived lead{leads.length > 1 ? 's' : ''} — restore any time, or delete permanently.
+      </div>
+      {leads.map(l => (
+        <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>{l.name}</div>
+            {l.property && <div style={{ fontSize: 12, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.property}</div>}
+          </div>
+          <button className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => onRestore(l.id)}>Restore</button>
+          <button className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px', color: 'var(--danger)' }} onClick={() => onDelete(l.id)}>Delete</button>
+        </div>
+      ))}
     </div>
   );
 }
