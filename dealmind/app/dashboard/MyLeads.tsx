@@ -36,6 +36,14 @@ function appendNote(existing: string | null, text: string): string {
 // STAGES is now role-specific — computed inside the component from profile.user_role
 const MOTIVATIONS = ['Unknown', 'Low', 'Medium', 'High'];
 
+const FIELD_LABEL: React.CSSProperties = {
+  display: 'flex', flexDirection: 'column', gap: 4,
+  fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)',
+};
+const SELECT_RESET: React.CSSProperties = {
+  fontWeight: 400, textTransform: 'none', letterSpacing: 'normal', color: 'var(--text)',
+};
+
 // Real "latest activity" recency (ms since epoch), high = most recent.
 // 1) newest timestamp parsed from the Activity Log notes, else
 // 2) the lead's updated_at, else
@@ -257,12 +265,18 @@ export function MyLeads({ profile, leads, setLeads, calendar, focusLeadId, onFoc
             <input placeholder="Email" value={draft.email || ''} onChange={e => setDraft(d => ({ ...d, email: e.target.value }))} />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8 }}>
-            <select value={draft.stage || 'New Lead'} onChange={e => setDraft(d => ({ ...d, stage: e.target.value }))}>
-              {STAGES.map(s => <option key={s}>{s}</option>)}
-            </select>
-            <select value={draft.motivation || 'Unknown'} onChange={e => setDraft(d => ({ ...d, motivation: e.target.value }))}>
-              {MOTIVATIONS.map(m => <option key={m}>{m}</option>)}
-            </select>
+            <label style={FIELD_LABEL}>
+              Status
+              <select value={draft.stage || 'New Lead'} onChange={e => setDraft(d => ({ ...d, stage: e.target.value }))} style={SELECT_RESET}>
+                {STAGES.map(s => <option key={s}>{s}</option>)}
+              </select>
+            </label>
+            <label style={FIELD_LABEL}>
+              Motivation
+              <select value={draft.motivation || 'Unknown'} onChange={e => setDraft(d => ({ ...d, motivation: e.target.value }))} style={SELECT_RESET}>
+                {MOTIVATIONS.map(m => <option key={m}>{m}</option>)}
+              </select>
+            </label>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn" onClick={addLead}>Save</button>
@@ -608,12 +622,18 @@ function LeadCard({
 
           {/* Lead fields */}
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8 }}>
-            <select value={lead.stage} onChange={e => onUpdate({ stage: e.target.value })}>
-              {stages.map(s => <option key={s}>{s}</option>)}
-            </select>
-            <select value={lead.motivation} onChange={e => onUpdate({ motivation: e.target.value })}>
-              {MOTIVATIONS.map(m => <option key={m}>{m}</option>)}
-            </select>
+            <label style={FIELD_LABEL}>
+              Status
+              <select value={lead.stage} onChange={e => onUpdate({ stage: e.target.value })} style={SELECT_RESET}>
+                {stages.map(s => <option key={s}>{s}</option>)}
+              </select>
+            </label>
+            <label style={FIELD_LABEL}>
+              Motivation
+              <select value={lead.motivation} onChange={e => onUpdate({ motivation: e.target.value })} style={SELECT_RESET}>
+                {MOTIVATIONS.map(m => <option key={m}>{m}</option>)}
+              </select>
+            </label>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr', gap: 8 }}>
             <input
