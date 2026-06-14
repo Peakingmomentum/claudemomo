@@ -647,9 +647,6 @@ function LeadCard({
               style={{ opacity: lead.email ? 1 : 0.6 }}
             />
           </div>
-          <input type="number" min="0" value={lead.last_contact}
-                 onChange={e => onUpdate({ last_contact: Number(e.target.value) })}
-                 placeholder="Days since last contact (auto-resets on contact log)" />
           {/* Activity log */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: 2 }}>
