@@ -103,6 +103,14 @@ export default function SignInClient() {
       {/* Outer column: auth card + feature strip */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 28, width: '100%', maxWidth: 880, position: 'relative' }}>
 
+      <h1 style={{
+        margin: 0, textAlign: 'center', fontWeight: 900,
+        fontSize: 'clamp(30px, 7vw, 48px)', letterSpacing: '0.14em',
+        color: '#0f172a', lineHeight: 1,
+      }}>
+        WARM FOLLOW
+      </h1>
+
       <div style={{
         width: '100%', maxWidth: 420, position: 'relative',
         background: 'rgba(255,255,255,0.8)',
