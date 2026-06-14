@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Invoice #101575 — Escalante Glass &amp; IG</title>
+<style>
+  @page { size: Letter; margin: 0.5in; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    color: #1a1a1a;
+    margin: 0;
+    padding: 32px;
+    background: #f5f5f5;
+  }
+  .invoice {
+    max-width: 850px;
+    margin: 0 auto;
+    background: #fff;
+    padding: 48px 56px;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.08);
+    border-top: 6px solid #0a4d8c;
+  }
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 2px solid #0a4d8c;
+    padding-bottom: 20px;
+    margin-bottom: 28px;
+  }
+  .brand h1 {
+    margin: 0;
+    font-size: 26px;
+    color: #0a4d8c;
+    letter-spacing: 0.5px;
+  }
+  .brand .tagline {
+    margin-top: 4px;
+    font-size: 12px;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+  }
+  .brand .contact {
+    margin-top: 10px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #333;
+  }
+  .invoice-meta {
+    text-align: right;
+  }
+  .invoice-meta .label {
+    font-size: 24px;
+    font-weight: 700;
+    color: #0a4d8c;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+  }
+  .invoice-meta .number {
+    font-size: 18px;
+    color: #c0392b;
+    font-weight: 700;
+    margin-top: 4px;
+  }
+  .invoice-meta .date {
+    font-size: 13px;
+    color: #555;
+    margin-top: 6px;
+  }
+  .parties {
+    display: flex;
+    gap: 32px;
+    margin-bottom: 32px;
+  }
+  .party {
+    flex: 1;
+    background: #f7f9fc;
+    padding: 16px 18px;
+    border-left: 4px solid #0a4d8c;
+  }
+  .party h3 {
+    margin: 0 0 8px 0;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: #0a4d8c;
+  }
+  .party p {
+    margin: 2px 0;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  table.items {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 24px;
+    font-size: 13px;
+  }
+  table.items thead th {
+    background: #0a4d8c;
+    color: #fff;
+    padding: 10px 12px;
+    text-align: left;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  table.items thead th.num,
+  table.items tbody td.num { text-align: right; }
+  table.items thead th.center,
+  table.items tbody td.center { text-align: center; }
+  table.items tbody td {
+    padding: 12px;
+    border-bottom: 1px solid #e2e8ef;
+    vertical-align: top;
+  }
+  table.items tbody tr:nth-child(even) td {
+    background: #fafbfd;
+  }
+  table.items .desc {
+    font-weight: 600;
+  }
+  table.items .sub {
+    display: block;
+    font-weight: 400;
+    color: #666;
+    font-size: 12px;
+    margin-top: 2px;
+  }
+  .totals {
+    width: 320px;
+    margin-left: auto;
+    border-top: 2px solid #0a4d8c;
+    padding-top: 12px;
+  }
+  .totals .row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    font-size: 13px;
+  }
+  .totals .row.grand {
+    border-top: 1px solid #ccc;
+    margin-top: 6px;
+    padding-top: 12px;
+    font-size: 18px;
+    font-weight: 700;
+    color: #0a4d8c;
+  }
+  .nfrc {
+    margin-top: 36px;
+    border: 2px solid #1a1a1a;
+    padding: 0;
+  }
+  .nfrc-header {
+    background: #1a1a1a;
+    color: #fff;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .nfrc-body { padding: 14px 18px; }
+  .nfrc-body h4 {
+    margin: 0 0 8px 0;
+    font-size: 13px;
+    text-align: center;
+    border-bottom: 1px solid #1a1a1a;
+    padding-bottom: 6px;
+  }
+  .nfrc-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    margin-bottom: 10px;
+  }
+  .nfrc-cell {
+    text-align: center;
+    padding: 10px 8px;
+    border: 1px solid #1a1a1a;
+  }
+  .nfrc-cell .name {
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .nfrc-cell .value {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 4px 0 2px;
+  }
+  .nfrc-cell .units {
+    font-size: 10px;
+    color: #555;
+  }
+  .uv-callout {
+    margin-top: 24px;
+    padding: 14px 18px;
+    background: #eaf4ff;
+    border-left: 4px solid #0a4d8c;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  .uv-callout strong { color: #0a4d8c; }
+  footer {
+    margin-top: 32px;
+    padding-top: 16px;
+    border-top: 1px solid #ddd;
+    font-size: 11px;
+    color: #666;
+    text-align: center;
+    line-height: 1.6;
+  }
+  .terms {
+    margin-top: 24px;
+    font-size: 12px;
+    color: #444;
+    line-height: 1.55;
+  }
+  .terms h4 {
+    margin: 0 0 6px 0;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #0a4d8c;
+  }
+</style>
+</head>
+<body>
+<div class="invoice">
+
+  <header>
+    <div class="brand">
+      <h1>Escalante Glass &amp; IG</h1>
+      <div class="tagline">Insulated Glass · Low-E Replacement Windows</div>
+      <div class="contact">
+        Sergio Escalante<br>
+        Phone: (951) 801-1290<br>
+        Service Area: Inland Empire, CA
+      </div>
+    </div>
+    <div class="invoice-meta">
+      <div class="label">Invoice</div>
+      <div class="number">#101575</div>
+      <div class="date">Date: April 28, 2026</div>
+      <div class="date">Terms: Due on receipt</div>
+    </div>
+  </header>
+
+  <div class="parties">
+    <div class="party">
+      <h3>Bill To</h3>
+      <p><strong>Justin</strong></p>
+      <p>Certified Cash Offers</p>
+      <p>justin@certifiedcashoffers.com</p>
+    </div>
+    <div class="party">
+      <h3>Service Address</h3>
+      <p>6503 Concerto Dr</p>
+      <p>Eastvale, CA</p>
+    </div>
+  </div>
+
+  <table class="items">
+    <thead>
+      <tr>
+        <th class="center">Qty</th>
+        <th>Description</th>
+        <th class="num">Unit Price</th>
+        <th class="num">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="center">3</td>
+        <td>
+          <span class="desc">Low-E Insulated Glass Unit — 21¼" × 56½"</span>
+          <span class="sub">Dual-pane Low-E with UV protection · supply &amp; install</span>
+        </td>
+        <td class="num">$250.00</td>
+        <td class="num">$750.00</td>
+      </tr>
+      <tr>
+        <td class="center">1</td>
+        <td>
+          <span class="desc">Low-E Insulated Glass Unit — 21¼" × 44⅜"</span>
+          <span class="sub">Dual-pane Low-E with UV protection · supply &amp; install</span>
+        </td>
+        <td class="num">$230.00</td>
+        <td class="num">$230.00</td>
+      </tr>
+      <tr>
+        <td class="center">1</td>
+        <td>
+          <span class="desc">Low-E Insulated Glass Unit — 20¼" × 56½"</span>
+          <span class="sub">Dual-pane Low-E with UV protection · supply &amp; install</span>
+        </td>
+        <td class="num">$250.00</td>
+        <td class="num">$250.00</td>
+      </tr>
+      <tr>
+        <td class="center">1</td>
+        <td>
+          <span class="desc">Low-E Insulated Glass Unit — 20½" × 21⅜"</span>
+          <span class="sub">Dual-pane Low-E with UV protection · supply &amp; install</span>
+        </td>
+        <td class="num">$210.00</td>
+        <td class="num">$210.00</td>
+      </tr>
+      <tr>
+        <td class="center">1</td>
+        <td>
+          <span class="desc">Replacement Window Screen — 21⅝" × 56½"</span>
+          <span class="sub">Fiberglass mesh in aluminum frame</span>
+        </td>
+        <td class="num">$50.00</td>
+        <td class="num">$50.00</td>
+      </tr>
+      <tr>
+        <td class="center">1</td>
+        <td>
+          <span class="desc">Replacement Screen Door — 47½" × 93⅛"</span>
+          <span class="sub">Sliding screen door, heavy-duty mesh</span>
+        </td>
+        <td class="num">$190.00</td>
+        <td class="num">$190.00</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="totals">
+    <div class="row"><span>Subtotal</span><span>$1,680.00</span></div>
+    <div class="row"><span>Tax</span><span>$0.00</span></div>
+    <div class="row grand"><span>Total Due</span><span>$1,680.00</span></div>
+  </div>
+
+  <div class="nfrc">
+    <div class="nfrc-header">NFRC Certified — Energy Performance</div>
+    <div class="nfrc-body">
+      <h4>Low-E Insulated Glass · UV-Protective Dual-Pane</h4>
+      <div class="nfrc-grid">
+        <div class="nfrc-cell">
+          <div class="name">U-Factor</div>
+          <div class="value">0.30</div>
+          <div class="units">(US./I-P)</div>
+        </div>
+        <div class="nfrc-cell">
+          <div class="name">Solar Heat Gain Coefficient</div>
+          <div class="value">0.16</div>
+          <div class="units">SHGC</div>
+        </div>
+        <div class="nfrc-cell">
+          <div class="name">Visible Transmittance</div>
+          <div class="value">0.34</div>
+          <div class="units">VT</div>
+        </div>
+        <div class="nfrc-cell">
+          <div class="name">Air Leakage</div>
+          <div class="value">0.2</div>
+          <div class="units">cfm/ft²</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="uv-callout">
+    <strong>UV Protection:</strong> The Low-E coating on these insulated glass units
+    blocks up to <strong>~99% of harmful UV rays</strong>, helping prevent fading of
+    flooring, furniture, and artwork. With a Solar Heat Gain Coefficient of
+    <strong>0.16</strong>, this glass also rejects approximately 84% of solar heat,
+    keeping interiors cooler and reducing cooling costs while maintaining clear
+    daylight visibility.
+  </div>
+
+  <div class="terms">
+    <h4>Terms &amp; Warranty</h4>
+    Payment due upon receipt. All Low-E insulated glass units carry a
+    <strong>10-year manufacturer warranty</strong> against seal failure.
+    Workmanship warranted for 1 year from date of installation.
+    Make checks payable to Sergio Escalante.
+  </div>
+
+  <footer>
+    Thank you for your business.<br>
+    Escalante Glass &amp; IG · (951) 801-1290 · Invoice #101575
+  </footer>
+
+</div>
+</body>
+</html>
