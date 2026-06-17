@@ -151,7 +151,7 @@ export function DailyIntel({ profile, leads, calendar, onStartCheckin }: Props) 
 
             {/* Morning check-in CTA — launches the interactive standup in chat */}
             {onStartCheckin && (
-              <button onClick={onStartCheckin} style={{
+              <button data-tour="checkin" onClick={onStartCheckin} style={{
                 width: '100%', padding: '12px', borderRadius: 10, border: 'none', cursor: 'pointer',
                 background: 'linear-gradient(135deg, #4a90d9 0%, #0f4c81 100%)', color: '#fff',
                 fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,

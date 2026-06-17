@@ -6,6 +6,9 @@ import { Icon } from '@/components/Icon';
 import type { DealMindUser, Lead, ChatMessage, CalendarEvent } from '@/types';
 import { useMobile } from '@/hooks/useMobile';
 import { DailyIntel } from './DailyIntel';
+import { GettingStarted } from './GettingStarted';
+import { HelpCenter } from './HelpCenter';
+import { runWelcomeTour } from '@/lib/tours';
 import { CopilotChat } from './CopilotChat';
 import { MyLeads } from './MyLeads';
 import { CalendarView } from './CalendarView';
@@ -16,7 +19,7 @@ import { TasksView } from './TasksView';
 import { CalculatorsTab } from './CalculatorsTab';
 import { AffiliateTab } from './AffiliateTab';
 
-type Tab = 'intel' | 'copilot' | 'coaching' | 'leads' | 'tasks' | 'calendar' | 'connectors' | 'settings' | 'calculators' | 'affiliate';
+type Tab = 'intel' | 'copilot' | 'coaching' | 'leads' | 'tasks' | 'calendar' | 'connectors' | 'settings' | 'calculators' | 'affiliate' | 'help';
 
 interface Props {
   profile: DealMindUser;
@@ -43,6 +46,7 @@ const DESKTOP_NAV: Array<[Tab, string, any]> = [
   ['coaching',    'Coaching',     'bulb'],
   ['connectors',  'Connectors',   'link'],
   ['affiliate',   'Affiliate',    'link'],
+  ['help',        'Help',         'bulb'],
   ['settings',    'Settings',     'user'],
 ];
 
@@ -60,6 +64,7 @@ const MORE_NAV: Array<[Tab, string, any]> = [
   ['calculators', 'Calculators',  'dollar'],
   ['affiliate',   'Affiliate',    'link'],
   ['connectors',  'Connectors',   'link'],
+  ['help',        'Help',         'bulb'],
   ['settings',    'Settings',     'user'],
 ];
 
@@ -74,6 +79,7 @@ const PAGE_TITLES: Record<Tab, string> = {
   settings:    'Settings',
   calculators: 'Calculators',
   affiliate:   'Affiliate',
+  help:        'Help',
 };
 
 export default function DashboardClient({ profile: initialProfile, initialLeads, initialMessages, initialCalendar }: Props) {
@@ -103,6 +109,27 @@ export default function DashboardClient({ profile: initialProfile, initialLeads,
   const supabase = createSupabaseBrowserClient();
   const copilotName = profile.copilot_name || 'Pilot';
   const isMobile = useMobile();
+
+  // ── Onboarding: persist tour/checklist state on the user row ──
+  function markOnboarding(patch: Record<string, any>) {
+    const next = { ...((profile.onboarding_state as any) || {}), ...patch };
+    setProfile(p => ({ ...p, onboarding_state: next } as any));
+    supabase.from('users').update({ onboarding_state: next }).eq('id', profile.id).then(() => {}, () => {});
+  }
+  function tryCopilot() {
+    if (isMobile) { setTab('copilot'); return; }
+    setTimeout(() => {
+      (document.querySelector('[data-tour="chat-input"] textarea, [data-tour="chat-input"] input') as HTMLElement | null)?.focus();
+    }, 50);
+  }
+  // First-run welcome tour (desktop — mirrors the auto check-in). Shows once.
+  useEffect(() => {
+    if (isMobile) return;
+    if ((profile.onboarding_state as any)?.welcomeTourDone) return;
+    const t = setTimeout(() => { runWelcomeTour(); markOnboarding({ welcomeTourDone: true }); }, 900);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const stored = localStorage.getItem('theme') as 'light' | 'dark' | null;
@@ -169,6 +196,7 @@ export default function DashboardClient({ profile: initialProfile, initialLeads,
           {DESKTOP_NAV.map(([key, label, icon]) => (
             <button
               key={key}
+              data-tour={`nav-${key}`}
               onClick={() => setTab(key)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px',
@@ -260,7 +288,22 @@ export default function DashboardClient({ profile: initialProfile, initialLeads,
 
         {/* Content area */}
         <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? 12 : 20, minHeight: 0 }}>
-          {tab === 'intel'       && <DailyIntel profile={profile} leads={leads} calendar={calendar} onStartCheckin={() => { setCheckinSeed("Let's do my morning check-in. Celebrate yesterday's wins, then walk me through my open and overdue tasks one at a time — ask what happened with each and log the updates (notes, completed tasks, new follow-ups, appointments) as we go."); if (isMobile) setTab('copilot'); }} />}
+          {tab === 'intel' && (
+            <>
+              {!(profile.onboarding_state as any)?.checklistDismissed && (
+                <GettingStarted
+                  profile={profile}
+                  leadsCount={activeLeads.length}
+                  hasChatted={messages.length > 0}
+                  onGoTo={t => setTab(t as Tab)}
+                  onTryCopilot={tryCopilot}
+                  onStartTour={() => runWelcomeTour()}
+                  onDismiss={() => markOnboarding({ checklistDismissed: true })}
+                />
+              )}
+              <DailyIntel profile={profile} leads={leads} calendar={calendar} onStartCheckin={() => { setCheckinSeed(CHECKIN_PROMPT); if (isMobile) setTab('copilot'); }} />
+            </>
+          )}
           {tab === 'leads'       && <MyLeads profile={profile} leads={leads} setLeads={setLeads} calendar={calendar} focusLeadId={focusLeadId} onFocusCleared={() => setFocusLeadId(null)} />}
           {tab === 'tasks'       && <TasksView profile={profile} leads={leads} calendar={calendar} onCalendarChange={refreshCalendar} />}
           {tab === 'coaching'    && <CoachingTab profile={profile} />}
@@ -269,6 +312,7 @@ export default function DashboardClient({ profile: initialProfile, initialLeads,
           {tab === 'settings'    && <Settings profile={profile} />}
           {tab === 'calculators' && <CalculatorsTab profile={profile} />}
           {tab === 'affiliate'   && <AffiliateTab profile={profile} />}
+          {tab === 'help'        && <HelpCenter />}
           {isMobile && tab === 'copilot' && (
             <CopilotChat
               profile={profile}

@@ -203,7 +203,7 @@ export function MyLeads({ profile, leads, setLeads, calendar, focusLeadId, onFoc
           )}
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <div style={{ display: 'flex', background: 'var(--surface)', borderRadius: 8, padding: 2, border: '1px solid var(--border)' }}>
+          <div data-tour="view-toggle" style={{ display: 'flex', background: 'var(--surface)', borderRadius: 8, padding: 2, border: '1px solid var(--border)' }}>
             {(['list', 'board'] as const).map(v => (
               <button key={v} onClick={() => changeView(v)} style={{
                 padding: '6px 12px', border: 'none', borderRadius: 6, cursor: 'pointer',
@@ -215,11 +215,11 @@ export function MyLeads({ profile, leads, setLeads, calendar, focusLeadId, onFoc
               </button>
             ))}
           </div>
-          <button className="btn btn-ghost" onClick={toggleArchived}
+          <button data-tour="archived" className="btn btn-ghost" onClick={toggleArchived}
             style={{ fontSize: 12, color: showArchived ? 'var(--accent)' : 'var(--muted)' }}>
             🗄 {showArchived ? 'Back to pipeline' : 'Archived'}
           </button>
-          <button className="btn" onClick={() => setAdding(a => !a)}>
+          <button data-tour="add-lead" className="btn" onClick={() => setAdding(a => !a)}>
             <Icon name="plus" /> Add lead
           </button>
         </div>

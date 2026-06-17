@@ -324,7 +324,7 @@ export function CopilotChat({ profile, leads, messages, setMessages, onLeadChang
       )}
 
       {/* ── Input row ── */}
-      <div style={{ display: 'flex', gap: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+      <div data-tour="chat-input" style={{ display: 'flex', gap: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
         <div style={{ flex: 1 }}>
           <VoiceField
             value={draft}

@@ -50,6 +50,7 @@ export interface DealMindUser {
   gcal_refresh_token: string | null;
   gmail_token_expiry: string | null;
   pilot_memory: string | null;
+  onboarding_state: Record<string, any> | null;
 }
 
 export interface Lead {
