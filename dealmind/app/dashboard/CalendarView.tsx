@@ -71,14 +71,17 @@ export function CalendarView({ profile, leads, calendar, onCalendarChange }: Pro
   while (cells.length < totalCells) cells.push({ date: null });
 
   // Events keyed by YYYY-MM-DD
-  const eventsByDay: Record<string, CalendarEvent[]> = {};
-  for (const e of calendar) {
-    const key = e.event_date.slice(0, 10);
-    (eventsByDay[key] = eventsByDay[key] || []).push(e);
+  // Key by LOCAL calendar date (not the UTC slice) so an evening event in a
+  // negative-offset zone (e.g. 6pm Pacific = 1am UTC next day) lands on the
+  // correct local day instead of rolling to tomorrow.
+  function dateKey(d: Date) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
 
-  function dateKey(d: Date) {
-    return d.toISOString().slice(0, 10);
+  const eventsByDay: Record<string, CalendarEvent[]> = {};
+  for (const e of calendar) {
+    const key = dateKey(new Date(e.event_date));
+    (eventsByDay[key] = eventsByDay[key] || []).push(e);
   }
 
   // ── Agenda: upcoming events grouped by day ─────────────────────────────────

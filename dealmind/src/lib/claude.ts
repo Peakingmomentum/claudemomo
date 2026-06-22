@@ -229,11 +229,22 @@ export const COPILOT_TOOLS: Anthropic.Tool[] = [
       type: 'object' as const,
       properties: {
         title:      { type: 'string' },
-        event_date: { type: 'string', description: 'ISO 8601 datetime, e.g. 2026-06-01T10:00:00' },
+        event_date: { type: 'string', description: 'ISO 8601 datetime in the user\'s LOCAL time with NO timezone offset and NO Z, e.g. 2026-06-24T18:00:00 for 6 PM. The system converts it to the user\'s timezone automatically — do NOT convert to UTC yourself.' },
         event_type: { type: 'string', description: 'follow_up, appointment, deadline, etc.' },
         lead_name:  { type: 'string', description: 'Associated lead name if any' },
       },
       required: ['title', 'event_date'],
+    },
+  },
+  {
+    name: 'delete_calendar_event',
+    description: 'Delete an event from the user\'s calendar by its title. Use when the user asks to delete/remove/cancel an event, or to remove a DUPLICATE. If duplicates of the same title exist, this keeps one and removes the extras. To RESCHEDULE: delete the wrong event with this, then add the corrected one with add_calendar_event — never leave a duplicate behind.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        title: { type: 'string', description: 'The title (or part of it) of the event to delete.' },
+      },
+      required: ['title'],
     },
   },
   {

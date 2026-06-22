@@ -51,7 +51,8 @@ async function executeTool(
   senderName: string,
   senderCompany: string | null,
   google: GoogleCreds | null,
-  tzOffsetMin: number
+  tzOffsetMin: number,
+  tz: string
 ): Promise<{ result: string; action?: Record<string, any> }> {
 
   // Helper: resolve lead by id or name
@@ -236,8 +237,25 @@ async function executeTool(
     }
 
     return {
-      result: `Calendar event "${title}" added for ${new Date(event_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.${googleNote}`,
+      result: `Calendar event "${title}" added for ${new Date(event_date).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: tz })}.${googleNote}`,
       action: { type: 'event_added', event },
+    };
+  }
+
+  if (toolName === 'delete_calendar_event') {
+    const title = String(input.title || '').trim();
+    if (!title) return { result: 'Which event should I delete? Give me its title.' };
+    const { data: matches } = await supabase.from('calendar_events')
+      .select('id, title, event_date').eq('user_id', userId)
+      .ilike('title', `%${title}%`).order('created_at', { ascending: true });
+    if (!matches || !matches.length) return { result: `No event found matching "${title}".` };
+    // One match → delete it. Multiple (duplicates) → keep the first, delete the rest.
+    const toDelete = matches.length > 1 ? matches.slice(1) : matches;
+    await supabase.from('calendar_events').delete().in('id', toDelete.map(m => m.id));
+    const kept = matches.length > 1 ? ' (kept one)' : '';
+    return {
+      result: `Deleted ${toDelete.length} event${toDelete.length > 1 ? 's' : ''} matching "${title}"${kept}.`,
+      action: { type: 'calendar_updated' },
     };
   }
 
@@ -497,7 +515,7 @@ export async function POST(req: NextRequest) {
       if (block.type !== 'tool_use') continue;
       const { result, action } = await executeTool(
         block.name, block.input as Record<string, any>,
-        user.id, supabase, currentLeads, slackWebhook, copilotName, ghl, senderName, senderCompany, google, tzOffsetMin
+        user.id, supabase, currentLeads, slackWebhook, copilotName, ghl, senderName, senderCompany, google, tzOffsetMin, tz || 'UTC'
       );
       if (action) {
         actions.push(action);
